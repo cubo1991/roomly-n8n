@@ -3,12 +3,11 @@
 Bot de WhatsApp que gestiona reservas de hotel usando n8n + Google Gemini + Google Calendar.
 
 ## Stack
-- **n8n** – motor de automatización
-- **Google Gemini Flash** – modelo de IA
+- **n8n** – motor de automatización (Docker)
+- **Google Gemini Flash** – modelo de IA (API gratuita)
 - **Google Calendar** – base de datos de reservas
 - **WhatsApp Business API** – canal de comunicación
 - **ngrok** – exposición pública del webhook
-- **Docker** – contenedores
 
 ## Funcionalidades
 - Crear reservas con código RML único
