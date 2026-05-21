@@ -1,0 +1,212 @@
+{
+  "name": "Roomly v5 – Gemini Flash Optimizado",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "={{ $('WhatsApp Trigger').item.json.metadata.phone_number_id }}",
+        "recipientPhoneNumber": "={{ $env.WHATSAPP_RECIPIENT }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [7904, 1168],
+      "id": "834511e9-120a-4af5-8c78-5deb94123e0e",
+      "name": "Enviar respuesta al usuario",
+      "webhookId": "a05f33a1-d7a6-40ab-97ee-80b659379421",
+      "credentials": {
+        "whatsAppApi": {"id": "", "name": "WhatsApp account"}
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_CALENDAR_ID }}",
+          "mode": "id"
+        },
+        "timeMin": "=2024-01-01T00:00:00-03:00",
+        "timeMax": "=2030-12-31T23:59:59-03:00",
+        "options": {
+          "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Query', 'Código RML (ej: RML-1234) o nombre del huésped para buscar en Google Calendar.', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [7808, 1504],
+      "id": "42c11044-949e-40cd-a986-55d031bab300",
+      "name": "Consultar reservas (getAll)1",
+      "credentials": {
+        "googleCalendarOAuth2Api": {"id": "", "name": "Google Calendar account"}
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_CALENDAR_ID }}",
+          "mode": "id"
+        },
+        "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', 'Check-in ISO 8601 Argentina. Ej: 2026-06-01T14:00:00-03:00', 'string') }}",
+        "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', 'Check-out ISO 8601 Argentina. Ej: 2026-06-05T11:00:00-03:00', 'string') }}",
+        "additionalFields": {
+          "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Description', 'Código: RML-XXXX | WhatsApp | Ingreso: YYYY-MM-DD | Egreso: YYYY-MM-DD | Huéspedes: N | Tel: numero', 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', '[RML-XXXX] Reserva – Nombre – N personas', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [7936, 1488],
+      "id": "c85245ab-f91e-4ded-977c-7bcacf9e5cf8",
+      "name": "Crear reserva (create)1",
+      "credentials": {
+        "googleCalendarOAuth2Api": {"id": "", "name": "Google Calendar account"}
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_CALENDAR_ID }}",
+          "mode": "id"
+        },
+        "eventId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('EventId', 'ID del evento de Google Calendar a modificar', 'string') }}",
+        "updateFields": {
+          "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Description', 'Código: RML-XXXX | MODIFICADO | Ingreso: YYYY-MM-DD | Egreso: YYYY-MM-DD | Huéspedes: N | Tel: numero', 'string') }}",
+          "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', 'Nuevo check-out ISO 8601 Argentina. Ej: 2026-06-15T11:00:00-03:00', 'string') }}",
+          "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', 'Nuevo check-in ISO 8601 Argentina. Ej: 2026-06-10T14:00:00-03:00', 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', '[RML-XXXX] Reserva – Nombre – N personas (mismo código RML)', 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [8144, 1488],
+      "id": "0bea4f87-f598-4c6b-93bc-1707fe393d2d",
+      "name": "Modificar reserva (update)1",
+      "credentials": {
+        "googleCalendarOAuth2Api": {"id": "", "name": "Google Calendar account"}
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "={{ $env.GOOGLE_CALENDAR_ID }}",
+          "mode": "id"
+        },
+        "eventId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('EventId', 'ID del evento a eliminar. Solo tras confirmación explícita del huésped.', 'string') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [8336, 1488],
+      "id": "9074071c-5830-4026-a5d9-f670ebd0fb5a",
+      "name": "Cancelar reserva (delete)1",
+      "credentials": {
+        "googleCalendarOAuth2Api": {"id": "", "name": "Google Calendar account"}
+      }
+    },
+    {
+      "parameters": {
+        "updates": ["messages"],
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [7120, 1168],
+      "id": "a6f52e54-ff39-4c1f-8ae2-af0b40aad7cd",
+      "name": "WhatsApp Trigger",
+      "webhookId": "a3989a6b-2aa1-441d-8ef6-c91e5954738f",
+      "credentials": {
+        "whatsAppTriggerApi": {"id": "", "name": "WhatsApp OAuth account"}
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst mensaje = item.messages?.[0];\nif (!mensaje || mensaje.type !== 'text') return [];\nconst phoneNumberId = item.metadata?.phone_number_id ?? '';\nconst from = mensaje.from ?? '';\nconst messageText = mensaje.text?.body ?? '';\nconst timestamp = mensaje.timestamp ?? Math.floor(Date.now() / 1000);\nif (!messageText.trim()) return [];\nconst codigoRML = 'RML-' + String(Math.floor(Math.random() * 10000)).padStart(4, '0');\nreturn [{ json: { phoneNumberId, from, messageText, timestamp, codigoRML } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [7360, 1168],
+      "id": "f7e917e6-7e11-4533-bae7-fb0a8a377160",
+      "name": "Extraer datos del mensaje"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Extraer datos del mensaje').item.json.from }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [7616, 1376],
+      "id": "0a5183d6-9805-42a3-82e5-bced79defb47",
+      "name": "Memoria por usuario"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {
+          "maxOutputTokens": 512,
+          "temperature": 0.1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [7104, 1472],
+      "id": "7b147711-a013-42bb-8558-a3b7ce6b03f3",
+      "name": "Gemini Flash",
+      "credentials": {
+        "googlePalmApi": {"id": "", "name": "Google Gemini(PaLM) Api account"}
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [8112, 1184],
+      "id": "cf6fe2da-d663-4d2d-8818-7ac6d1ecf6cb",
+      "name": "Logging de interacción"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.messageText }}",
+        "options": {
+          "systemMessage": "=Eres Roomly, recepcionista virtual de hotel. Solo gestionás reservas por WhatsApp.\nHOY: {{ $now.toISO() }} | CÓDIGO PRÓXIMA RESERVA: {{ $json.codigoRML }}\n\nACCIONES DISPONIBLES:\n\n1. NUEVA RESERVA: Recopilá nombre, check-in, check-out, cantidad de personas (pedí los que falten). Luego: consultá disponibilidad → si hay lugar, creá el evento con estos datos exactos:\n- Summary: [{{ $json.codigoRML }}] Reserva – [Nombre] – [N] personas\n- Description: Código: {{ $json.codigoRML }} | WhatsApp | Ingreso: [fecha] | Egreso: [fecha] | Huéspedes: [N] | Tel: {{ $('Extraer datos del mensaje').item.json.from }}\n- Start: [fecha]T14:00:00-03:00\n- End: [fecha]T11:00:00-03:00\n\n2. CONSULTA: Pedí código RML o nombre. Llamá a Consultar reservas pasando Query=código RML o nombre. Mostrá código, nombre, ingreso, egreso, personas.\n\n3. MODIFICACIÓN: Pedí código RML. Consultá el evento con Query=código RML. Con el ID encontrado ejecutá update manteniendo el mismo código RML.\n\n4. CANCELACIÓN: Pedí código RML. Consultá con Query=código RML. Pedí confirmación explícita del huésped, recién entonces ejecutá delete con el ID encontrado.\n\nREGLAS:\n- NUNCA confirmés una reserva sin haber ejecutado exitosamente Crear reserva.\n- NUNCA inventés ni calcules el código RML, usá siempre {{ $json.codigoRML }}.\n- Siempre consultá el evento antes de modificar o cancelar.\n- Respuestas cortas, en español rioplatense.\n- Si el mensaje no es sobre reservas: \"Solo gestiono reservas del hotel. ¿Querés hacer o consultar una?\""
+        }
+      },
+      "id": "c020e75b-8f4c-4a83-abfc-646a4db0baac",
+      "name": "AI Agent – Roomly",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [7600, 1168],
+      "typeVersion": 1.8,
+      "alwaysOutputData": false,
+      "retryOnFail": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Enviar respuesta al usuario": {"main": [[{"node": "Logging de interacción", "type": "main", "index": 0}]]},
+    "Consultar reservas (getAll)1": {"ai_tool": [[{"node": "AI Agent – Roomly", "type": "ai_tool", "index": 0}]]},
+    "Crear reserva (create)1": {"ai_tool": [[{"node": "AI Agent – Roomly", "type": "ai_tool", "index": 0}]]},
+    "Modificar reserva (update)1": {"ai_tool": [[{"node": "AI Agent – Roomly", "type": "ai_tool", "index": 0}]]},
+    "Cancelar reserva (delete)1": {"ai_tool": [[{"node": "AI Agent – Roomly", "type": "ai_tool", "index": 0}]]},
+    "WhatsApp Trigger": {"main": [[{"node": "Extraer datos del mensaje", "type": "main", "index": 0}]]},
+    "Extraer datos del mensaje": {"main": [[{"node": "AI Agent – Roomly", "type": "main", "index": 0}]]},
+    "Memoria por usuario": {"ai_memory": [[{"node": "AI Agent – Roomly", "type": "ai_memory", "index": 0}]]},
+    "AI Agent – Roomly": {"main": [[{"node": "Enviar respuesta al usuario", "type": "main", "index": 0}]]},
+    "Gemini Flash": {"ai_languageModel": [[{"node": "AI Agent – Roomly", "type": "ai_languageModel", "index": 0}]]}
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1", "binaryMode": "separate"},
+  "meta": {},
+  "id": "GOBby76nZiQ2yYxw",
+  "tags": []
+}

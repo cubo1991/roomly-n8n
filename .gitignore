@@ -1,0 +1,9 @@
+# Datos sensibles - NUNCA subir
+.env
+
+# Backups locales
+*.backup.json
+
+# Sistema
+.DS_Store
+Thumbs.db

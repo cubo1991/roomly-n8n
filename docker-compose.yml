@@ -1,0 +1,60 @@
+version: "3.8"
+
+# ============================================================
+# Roomly Stack – n8n + Ollama
+# 1. Copiá .env.example → .env y completá los valores
+# 2. docker compose up -d
+# 3. docker exec -it ollama ollama pull qwen2.5:7b  (primera vez)
+# ============================================================
+
+services:
+
+  n8n:
+    image: n8nio/n8n
+    container_name: n8nNgrok
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_TRUST_PROXY=true
+      - N8N_SECURE_COOKIE=false
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - NODE_ENV=production
+      - EXECUTIONS_TIMEOUT=300
+      - EXECUTIONS_TIMEOUT_MAX=600
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - roomly_net
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - roomly_net
+    # GPU NVIDIA – descomenta si tenés:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+networks:
+  roomly_net:
+    driver: bridge
+
+volumes:
+  n8n_data:
+  ollama_data:
