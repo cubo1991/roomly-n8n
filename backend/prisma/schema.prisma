@@ -1,0 +1,215 @@
+// Roomly – Prisma Schema
+// Stack: PostgreSQL 16 + Prisma 5
+// Run: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+  OUT_OF_ORDER
+}
+
+enum HousekeepingStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  INSPECTED
+}
+
+enum Channel {
+  WHATSAPP
+  WEB
+  PHONE
+  OTA
+  DIRECT
+}
+
+// ─────────────────────────────────────────────
+// Core entities
+// ─────────────────────────────────────────────
+
+model Hotel {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  address   String?
+  phone     String?
+  email     String?
+  timezone  String   @default("America/Argentina/Buenos_Aires")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roomTypes    RoomType[]
+  rooms        Room[]
+  guests       Guest[]
+  reservations Reservation[]
+  ratePlans    RatePlan[]
+}
+
+model RoomType {
+  id          String   @id @default(cuid())
+  hotelId     String
+  hotel       Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  maxGuests   Int      @default(2)
+  amenities   String[]
+
+  rooms     Room[]
+  ratePlans RatePlan[]
+
+  @@index([hotelId])
+}
+
+model Room {
+  id      String     @id @default(cuid())
+  hotelId String
+  hotel   Hotel      @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  typeId  String
+  type    RoomType   @relation(fields: [typeId], references: [id])
+  number  String
+  floor   Int?
+  status  RoomStatus @default(AVAILABLE)
+  notes   String?
+
+  reservations      Reservation[]
+  housekeepingTasks HousekeepingTask[]
+
+  @@unique([hotelId, number])
+  @@index([hotelId])
+}
+
+model RatePlan {
+  id            String   @id @default(cuid())
+  hotelId       String
+  hotel         Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  typeId        String
+  type          RoomType @relation(fields: [typeId], references: [id])
+  name          String
+  pricePerNight Decimal  @db.Decimal(10, 2)
+  validFrom     DateTime @db.Date
+  validTo       DateTime @db.Date
+  minNights     Int      @default(1)
+
+  reservations Reservation[]
+
+  @@index([hotelId, typeId])
+}
+
+model Guest {
+  id        String   @id @default(cuid())
+  hotelId   String
+  hotel     Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  email     String?
+  dni       String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reservations         Reservation[]
+  conversationSessions ConversationSession[]
+
+  @@unique([hotelId, phone])
+  @@index([hotelId])
+}
+
+model Reservation {
+  id         String            @id @default(cuid())
+  hotelId    String
+  hotel      Hotel             @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  roomId     String
+  room       Room              @relation(fields: [roomId], references: [id])
+  guestId    String
+  guest      Guest             @relation(fields: [guestId], references: [id])
+  ratePlanId String?
+  ratePlan   RatePlan?         @relation(fields: [ratePlanId], references: [id])
+
+  code       String            @unique
+  status     ReservationStatus @default(CONFIRMED)
+  channel    Channel           @default(WHATSAPP)
+
+  checkIn    DateTime @db.Date
+  checkOut   DateTime @db.Date
+  numGuests  Int      @default(1)
+  totalPrice Decimal? @db.Decimal(10, 2)
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  housekeepingTasks HousekeepingTask[]
+  auditLogs         AuditLog[]
+
+  // IMPORTANT: double-booking exclusion constraint is added via raw SQL
+  // in the migration file. See prisma/migrations/*/migration.sql
+
+  @@index([hotelId])
+  @@index([roomId])
+  @@index([guestId])
+  @@index([code])
+}
+
+model HousekeepingTask {
+  id            String             @id @default(cuid())
+  roomId        String
+  room          Room               @relation(fields: [roomId], references: [id])
+  reservationId String?
+  reservation   Reservation?       @relation(fields: [reservationId], references: [id])
+  status        HousekeepingStatus @default(PENDING)
+  notes         String?
+  scheduledFor  DateTime
+  completedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([roomId])
+}
+
+model ConversationSession {
+  id        String   @id @default(cuid())
+  guestId   String?
+  guest     Guest?   @relation(fields: [guestId], references: [id])
+  channel   Channel  @default(WHATSAPP)
+  phone     String
+  context   Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone])
+}
+
+model AuditLog {
+  id            String      @id @default(cuid())
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id])
+  action        String
+  before        Json?
+  after         Json?
+  performedBy   String      @default("system")
+  createdAt     DateTime    @default(now())
+
+  @@index([reservationId])
+}

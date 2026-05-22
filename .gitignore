@@ -1,5 +1,8 @@
 # Datos sensibles - NUNCA subir
 .env
+backend/.env
+backend/.env.local
+backend/.env.production
 
 # Backups locales
 *.backup.json
@@ -7,3 +10,7 @@
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Backend build artifacts
+backend/.next/
+backend/node_modules/
