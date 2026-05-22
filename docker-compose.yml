@@ -47,7 +47,7 @@ services:
     networks:
       - roomly_network
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-roomly}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-roomly_password}

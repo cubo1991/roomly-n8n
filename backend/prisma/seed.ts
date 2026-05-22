@@ -1,9 +1,15 @@
+import { config } from "dotenv";
+import { resolve } from "path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL ?? "postgresql://roomly:roomly_password@localhost:5432/roomly",
-});
+// Load .env from backend root
+config({ path: resolve(__dirname, "../.env") });
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL not set");
+
+const adapter = new PrismaPg({ connectionString: databaseUrl });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
