@@ -1,5 +1,3 @@
-version: "3.8"
-
 # ============================================================
 # Roomly Stack
 # 1. Copiá .env.example → .env y completá los valores
