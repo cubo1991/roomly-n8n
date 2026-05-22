@@ -29,7 +29,14 @@ async function uniqueCode(): Promise<string> {
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export async function createReservation(input: CreateReservationInput) {
-  const { hotelId, roomId, guest, checkIn, checkOut, numGuests, channel, ratePlanId, notes } = input;
+  const { hotelId, roomId, checkIn, checkOut, numGuests, channel, ratePlanId, notes } = input;
+
+  // Normalize guest data: accept either nested object (dashboard) or flat fields (n8n)
+  const guest = input.guest ?? {
+    name: input.guestName!,
+    phone: input.guestPhone!,
+    email: input.guestEmail,
+  };
 
   // 1. Check availability (application-level guard; DB constraint is the final safety net)
   const available = await isRoomAvailable(roomId, checkIn, checkOut);

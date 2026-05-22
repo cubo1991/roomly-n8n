@@ -7,7 +7,8 @@ import {
 } from "@/services/reservation.service";
 import { prisma } from "@/lib/prisma";
 
-type Params = { params: { id: string } };
+// Next.js 15+ requires params to be awaited (they are now a Promise)
+type Params = { params: Promise<{ id: string }> };
 
 /**
  * GET /api/v1/reservations/:id
@@ -15,7 +16,7 @@ type Params = { params: { id: string } };
  */
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     let reservation;
     if (id.startsWith("RML-")) {
@@ -45,9 +46,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
 /**
  * PATCH /api/v1/reservations/:id
  * Body: UpdateReservationSchema
+ * Accepts empty strings for optional fields (n8n sends them for unfilled $fromAI params)
  */
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
+    const { id } = await params;
     const body = await req.json();
     const parsed = UpdateReservationSchema.safeParse(body);
 
@@ -58,7 +61,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       );
     }
 
-    const updated = await updateReservation(params.id, parsed.data);
+    const updated = await updateReservation(id, parsed.data);
     return NextResponse.json(updated);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";
@@ -74,7 +77,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
  */
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const cancelled = await cancelReservation(params.id);
+    const { id } = await params;
+    const cancelled = await cancelReservation(id);
     return NextResponse.json(cancelled);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Internal server error";

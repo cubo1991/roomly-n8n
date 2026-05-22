@@ -36,6 +36,11 @@ services:
       - NODE_ENV=production
       - EXECUTIONS_TIMEOUT=300
       - EXECUTIONS_TIMEOUT_MAX=600
+      # ── Backend integration ──────────────────────────────────
+      # En Windows Docker Desktop usa host.docker.internal para llegar al host
+      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:3000}
+      - HOTEL_ID=${HOTEL_ID}
+      - N8N_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET}
     volumes:
       - n8n_data:/home/node/.n8n
 

@@ -8,47 +8,89 @@ const dateString = z
 
 // ─── Reservation ─────────────────────────────────────────────────────────────
 
-export const CreateReservationSchema = z.object({
-  hotelId: z.string().cuid(),
-  roomId: z.string().cuid(),
-  guest: z.object({
-    name: z.string().min(2).max(100),
-    phone: z.string().min(8).max(20), // WhatsApp number
-    email: z.string().email().optional(),
-    dni: z.string().optional(),
-  }),
-  checkIn: dateString,
-  checkOut: dateString,
-  numGuests: z.number().int().min(1).max(20).default(1),
-  channel: z.enum(["WHATSAPP", "WEB", "PHONE", "OTA", "DIRECT"]).default("WHATSAPP"),
-  ratePlanId: z.string().cuid().optional(),
-  notes: z.string().max(500).optional(),
-  // If provided by n8n (already generated), preserve it. Otherwise generated server-side.
-  code: z
-    .string()
-    .regex(/^RML-\d{4}$/, "Code must be RML-XXXX format")
-    .optional(),
-}).refine(
-  (data) => new Date(data.checkOut) > new Date(data.checkIn),
-  { message: "checkOut must be after checkIn", path: ["checkOut"] }
-);
+export const CreateReservationSchema = z
+  .object({
+    hotelId: z.string().cuid(),
+    roomId: z.string().cuid(),
+
+    // Format A: nested guest object (dashboard / direct API)
+    guest: z
+      .object({
+        name: z.string().min(2).max(100),
+        phone: z.string().min(8).max(20),
+        email: z.string().email().optional(),
+        dni: z.string().optional(),
+      })
+      .optional(),
+
+    // Format B: flat guest fields (n8n tool nodes send body as key-value pairs)
+    guestName: z.string().min(2).max(100).optional(),
+    guestPhone: z.string().min(8).max(20).optional(),
+    guestEmail: z.string().email().optional(),
+
+    checkIn: dateString,
+    checkOut: dateString,
+    // z.coerce: n8n sends numbers as strings when using bodyParameters
+    numGuests: z.coerce.number().int().min(1).max(20).default(1),
+    channel: z
+      .enum(["WHATSAPP", "WEB", "PHONE", "OTA", "DIRECT"])
+      .default("WHATSAPP"),
+    ratePlanId: z.string().cuid().optional(),
+    notes: z.string().max(500).optional(),
+    // RML code: optional. If provided by n8n it's preserved; otherwise generated server-side.
+    code: z
+      .string()
+      .regex(/^RML-\d{4}$/, "Code must be RML-XXXX format")
+      .optional(),
+  })
+  .refine(
+    (data) =>
+      data.guest != null || (data.guestName != null && data.guestPhone != null),
+    {
+      message:
+        "Provide either a 'guest' object or both 'guestName' + 'guestPhone' fields",
+    }
+  )
+  .refine(
+    (data) => new Date(data.checkOut) > new Date(data.checkIn),
+    { message: "checkOut must be after checkIn", path: ["checkOut"] }
+  );
 
 export type CreateReservationInput = z.infer<typeof CreateReservationSchema>;
 
-export const UpdateReservationSchema = z.object({
-  checkIn: dateString.optional(),
-  checkOut: dateString.optional(),
-  numGuests: z.number().int().min(1).max(20).optional(),
-  status: z
-    .enum(["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW"])
-    .optional(),
-  notes: z.string().max(500).optional(),
-  roomId: z.string().cuid().optional(),
-}).refine(
-  (data) =>
-    !data.checkIn || !data.checkOut || new Date(data.checkOut) > new Date(data.checkIn),
-  { message: "checkOut must be after checkIn", path: ["checkOut"] }
-);
+export const UpdateReservationSchema = z
+  .object({
+    checkIn: dateString.optional(),
+    checkOut: dateString.optional(),
+    numGuests: z.coerce.number().int().min(1).max(20).optional(),
+    status: z
+      .enum([
+        "PENDING",
+        "CONFIRMED",
+        "CHECKED_IN",
+        "CHECKED_OUT",
+        "CANCELLED",
+        "NO_SHOW",
+      ])
+      .optional(),
+    notes: z.string().max(500).optional(),
+    roomId: z.string().cuid().optional(),
+  })
+  // Strip empty strings that n8n may send for unfilled optional fields
+  .transform((data) =>
+    Object.fromEntries(
+      Object.entries(data).filter(
+        ([, v]) => v !== "" && v !== null && v !== undefined
+      )
+    ) as typeof data
+  )
+  .refine(
+    (data) =>
+      !data.checkIn ||
+      !data.checkOut ||
+      new Date(data.checkOut) > new Date(data.checkIn),
+    { message: "checkOut must be after checkIn", path: ["checkOut"] }
+  );
 
 export type UpdateReservationInput = z.infer<typeof UpdateReservationSchema>;
 
@@ -58,7 +100,7 @@ export const CreateRoomSchema = z.object({
   hotelId: z.string().cuid(),
   typeId: z.string().cuid(),
   number: z.string().min(1).max(10),
-  floor: z.number().int().optional(),
+  floor: z.coerce.number().int().optional(),
   notes: z.string().optional(),
 });
 
