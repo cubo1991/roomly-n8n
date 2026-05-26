@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { reservationQueue } from "@/lib/queue";
 import { isRoomAvailable } from "./availability.service";
+import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/lib/calendar";
 import type { CreateReservationInput, UpdateReservationInput } from "@/lib/validations";
 
 // ─── Code generator ────────────────────────────────────────────────────────────
@@ -106,6 +107,23 @@ export async function createReservation(input: CreateReservationInput) {
     }),
   ]);
 
+  // 6. Create Google Calendar event (fire-and-forget; failure does NOT abort the reservation)
+  const calendarEventId = await createCalendarEvent({
+    code:       reservation.code,
+    guestName:  reservation.guest.name,
+    roomNumber: reservation.room.number,
+    checkIn:    reservation.checkIn,
+    checkOut:   reservation.checkOut,
+    numGuests:  reservation.numGuests,
+  });
+
+  if (calendarEventId) {
+    await prisma.reservation.update({
+      where: { id: reservation.id },
+      data:  { calendarEventId },
+    });
+  }
+
   return reservation;
 }
 
@@ -162,6 +180,18 @@ export async function updateReservation(
     return res;
   });
 
+  // Update Google Calendar event if one exists
+  if (current.calendarEventId) {
+    await updateCalendarEvent(current.calendarEventId, {
+      code:       current.code,
+      guestName:  updated.guest.name,
+      roomNumber: updated.room.number,
+      checkIn:    updated.checkIn,
+      checkOut:   updated.checkOut,
+      numGuests:  updated.numGuests,
+    });
+  }
+
   return updated;
 }
 
@@ -192,6 +222,11 @@ export async function cancelReservation(id: string, performedBy = "admin") {
 
     return res;
   });
+
+  // Remove Google Calendar event (fire-and-forget)
+  if (current.calendarEventId) {
+    await deleteCalendarEvent(current.calendarEventId);
+  }
 
   return updated;
 }

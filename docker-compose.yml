@@ -27,10 +27,12 @@ services:
     environment:
       - N8N_TRUST_PROXY=true
       - N8N_SECURE_COOKIE=false
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - N8N_HOST=${N8N_HOST}
       - N8N_PORT=5678
       - N8N_PROTOCOL=https
       - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_EDITOR_BASE_URL=${WEBHOOK_URL}
       - NODE_ENV=production
       - EXECUTIONS_TIMEOUT=300
       - EXECUTIONS_TIMEOUT_MAX=600
@@ -39,6 +41,7 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:3000}
       - HOTEL_ID=${HOTEL_ID}
       - N8N_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET}
+      - WHATSAPP_RECIPIENT=${WHATSAPP_RECIPIENT}
     volumes:
       - n8n_data:/home/node/.n8n
 

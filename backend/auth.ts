@@ -26,7 +26,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const { email, password } = parsed.data;
 
         const adminEmail = process.env.ADMIN_EMAIL;
-        const adminHash = process.env.ADMIN_PASSWORD_HASH;
+        // Next.js dotenv-expand converts \$ → $, but when running outside Next.js
+        // (e.g. ts-node scripts) the raw \$ can arrive intact. Normalize both cases.
+        const rawHash = process.env.ADMIN_PASSWORD_HASH ?? "";
+        const adminHash = rawHash.replace(/\\\$/g, "$");
 
         if (!adminEmail || !adminHash) {
           console.error("[Auth] ADMIN_EMAIL or ADMIN_PASSWORD_HASH not set");

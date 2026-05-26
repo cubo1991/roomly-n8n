@@ -11,9 +11,11 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
-  // API routes: require either session or X-N8N-Secret header
+  // API routes: require either session, X-N8N-Secret header, or _s query param
   if (isApiProtected && !isLoggedIn) {
-    const secret = req.headers.get("x-n8n-secret");
+    const headerSecret = req.headers.get("x-n8n-secret");
+    const querySecret  = req.nextUrl.searchParams.get("_s");
+    const secret = headerSecret ?? querySecret;
     if (secret !== process.env.N8N_WEBHOOK_SECRET) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

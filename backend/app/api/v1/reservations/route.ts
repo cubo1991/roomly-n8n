@@ -3,6 +3,7 @@ import { CreateReservationSchema } from "@/lib/validations";
 import {
   createReservation,
   listReservations,
+  findReservationByCode,
 } from "@/services/reservation.service";
 
 /**
@@ -12,11 +13,22 @@ import {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
-    const hotelId = searchParams.get("hotelId");
 
+    // ?code=RML-XXXX  →  single reservation lookup (used by n8n AI tool)
+    const code = searchParams.get("code");
+    if (code) {
+      const reservation = await findReservationByCode(code);
+      if (!reservation) {
+        return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
+      }
+      return NextResponse.json(reservation);
+    }
+
+    // ?hotelId=xxx  →  list reservations (used by dashboard)
+    const hotelId = searchParams.get("hotelId");
     if (!hotelId) {
       return NextResponse.json(
-        { error: "hotelId is required" },
+        { error: "hotelId or code is required" },
         { status: 400 }
       );
     }

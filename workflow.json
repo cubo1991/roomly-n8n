@@ -1,5 +1,5 @@
 {
-  "name": "Roomly v6 – Backend API",
+  "name": "Roomly v13 – placeholders en URL",
   "nodes": [
     {
       "parameters": {
@@ -36,7 +36,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first().json;\nconst mensaje = item.messages?.[0];\nif (!mensaje || mensaje.type !== 'text') return [];\nconst phoneNumberId = item.metadata?.phone_number_id ?? '';\nconst from = mensaje.from ?? '';\nconst messageText = mensaje.text?.body ?? '';\nconst timestamp = mensaje.timestamp ?? Math.floor(Date.now() / 1000);\nif (!messageText.trim()) return [];\nconst codigoRML = 'RML-' + String(Math.floor(Math.random() * 10000)).padStart(4, '0');\nreturn [{ json: { phoneNumberId, from, messageText, timestamp, codigoRML } }];\n"
+        "jsCode": "const item = $input.first().json;\nconst mensaje = item.messages?.[0];\nif (!mensaje || mensaje.type !== 'text') return [];\nconst phoneNumberId = item.metadata?.phone_number_id ?? '';\nconst from = mensaje.from ?? '';\nconst messageText = mensaje.text?.body ?? '';\nconst timestamp = mensaje.timestamp ?? Math.floor(Date.now() / 1000);\nif (!messageText.trim()) return [];\nreturn [{ json: { phoneNumberId, from, messageText, timestamp } }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -88,7 +88,7 @@
         "promptType": "define",
         "text": "={{ $json.messageText }}",
         "options": {
-          "systemMessage": "=Eres Roomly, recepcionista virtual de hotel. Solo gestionás reservas por WhatsApp.\nHOY: {{ $now.toISO() }} | CÓDIGO PRÓXIMA RESERVA: {{ $json.codigoRML }}\n\nACCIONES DISPONIBLES:\n\n1. NUEVA RESERVA: Recopilá nombre, check-in (YYYY-MM-DD), check-out (YYYY-MM-DD), cantidad de personas.\n   Flujo: 1) consultar_habitaciones(checkIn, checkOut) → elegir habitación según disponibilidad → 2) crear_reserva con el roomId obtenido.\n   NUNCA confirmés sin haber ejecutado crear_reserva exitosamente.\n\n2. CONSULTA: Pedí código RML. Llamá consultar_reserva(code=RML-XXXX). Mostrá código, nombre, ingreso, egreso, hab., personas.\n\n3. MODIFICACIÓN: Pedí código RML. Llamá consultar_reserva → obtenés el 'id' interno. Luego modificar_reserva(id, campos a cambiar).\n\n4. CANCELACIÓN: Pedí código RML. Llamá consultar_reserva → obtenés 'id'. Pedí confirmación explícita → cancelar_reserva(id).\n\nREGLAS:\n- Fechas SIEMPRE en formato YYYY-MM-DD.\n- NUNCA inventés el código RML, usá {{ $json.codigoRML }}.\n- Respuestas cortas, en español rioplatense.\n- Si no es sobre reservas: \"Solo gestiono reservas del hotel. ¿Querés hacer o consultar una?\""
+          "systemMessage": "=Eres Roomly, recepcionista virtual de hotel. Solo gestionás reservas por WhatsApp.\nHOY: {{ $now.toISO() }}\nTELÉFONO DEL HUÉSPED: {{ $('Extraer datos del mensaje').item.json.from }}\n\nACCIONES DISPONIBLES:\n\n1. NUEVA RESERVA: Recopilá nombre, check-in (YYYY-MM-DD), check-out (YYYY-MM-DD), cantidad de personas.\n   Flujo OBLIGATORIO:\n   a) consultar_habitaciones(checkIn, checkOut) → elegir habitación según disponibilidad\n   b) crear_reserva(roomId, guestName, guestPhone, checkIn, checkOut, numGuests)\n      → guestPhone: SIEMPRE usá el teléfono del huésped indicado arriba, sin el signo +\n      → confirmá con el código RML que devuelve la respuesta\n\n2. CONSULTA: Pedí código RML. Llamá consultar_reserva(code=RML-XXXX). Mostrá código, nombre, ingreso, egreso, hab., personas.\n\n3. MODIFICACIÓN: Pedí código RML. Llamá consultar_reserva → obtenés 'id'. Luego modificar_reserva(id, y los campos que cambian).\n\n4. CANCELACIÓN: Pedí código RML. Llamá consultar_reserva → obtenés 'id'. Pedí confirmación explícita → cancelar_reserva(id).\n\nREGLAS:\n- Fechas SIEMPRE en formato YYYY-MM-DD.\n- Respuestas cortas, en español rioplatense.\n- Si no es sobre reservas: \"Solo gestiono reservas del hotel. ¿Querés hacer o consultar una?\""
         }
       },
       "id": "c020e75b-8f4c-4a83-abfc-646a4db0baac",
@@ -103,21 +103,13 @@
     {
       "parameters": {
         "name": "consultar_habitaciones",
-        "description": "Consulta habitaciones disponibles para un rango de fechas. Devuelve lista de habitaciones con su roomId, número, tipo y cantidad máxima de personas. SIEMPRE llamar antes de crear una reserva.",
+        "description": "Consulta habitaciones disponibles para un rango de fechas. Devuelve lista con id, número, tipo y capacidad. SIEMPRE llamar antes de crear una reserva.",
         "method": "GET",
-        "url": "={{ $env.BACKEND_URL + '/api/v1/rooms' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {"name": "X-N8N-Secret", "value": "={{ $env.N8N_WEBHOOK_SECRET }}"}
-          ]
-        },
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {"name": "hotelId", "value": "={{ $env.HOTEL_ID }}"},
-            {"name": "checkIn",  "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('checkIn',  'Fecha check-in formato YYYY-MM-DD', 'string') }}"},
-            {"name": "checkOut", "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('checkOut', 'Fecha check-out formato YYYY-MM-DD', 'string') }}"}
+        "url": "={{ $env.BACKEND_URL + '/api/v1/rooms?hotelId=' + $env.HOTEL_ID + '&_s=' + $env.N8N_WEBHOOK_SECRET + '&checkIn={checkIn}&checkOut={checkOut}' }}",
+        "placeholderDefinitions": {
+          "values": [
+            {"name": "checkIn",  "description": "Fecha check-in YYYY-MM-DD",  "type": "string"},
+            {"name": "checkOut", "description": "Fecha check-out YYYY-MM-DD", "type": "string"}
           ]
         },
         "options": {}
@@ -132,28 +124,17 @@
     {
       "parameters": {
         "name": "crear_reserva",
-        "description": "Crea una nueva reserva en el sistema. Requiere: roomId (del resultado de consultar_habitaciones), guestName (nombre del huésped), checkIn y checkOut (YYYY-MM-DD), numGuests (número entero).",
-        "method": "POST",
-        "url": "={{ $env.BACKEND_URL + '/api/v1/reservations' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {"name": "X-N8N-Secret", "value": "={{ $env.N8N_WEBHOOK_SECRET }}"}
-          ]
-        },
-        "sendBody": true,
-        "contentType": "json",
-        "bodyParameters": {
-          "parameters": [
-            {"name": "hotelId",    "value": "={{ $env.HOTEL_ID }}"},
-            {"name": "roomId",     "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('roomId',    'ID de la habitación disponible (campo id del resultado de consultar_habitaciones)', 'string') }}"},
-            {"name": "guestName",  "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('guestName',  'Nombre completo del huésped', 'string') }}"},
-            {"name": "guestPhone", "value": "={{ $('Extraer datos del mensaje').item.json.from }}"},
-            {"name": "checkIn",    "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('checkIn',    'Fecha check-in YYYY-MM-DD', 'string') }}"},
-            {"name": "checkOut",   "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('checkOut',   'Fecha check-out YYYY-MM-DD', 'string') }}"},
-            {"name": "numGuests",  "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('numGuests',  'Cantidad de personas (número entero)', 'number') }}"},
-            {"name": "channel",    "value": "WHATSAPP"},
-            {"name": "code",       "value": "={{ $('Extraer datos del mensaje').item.json.codigoRML }}"}
+        "description": "Crea una nueva reserva. Requiere roomId (de consultar_habitaciones), guestName, guestPhone (teléfono del sistema sin +), checkIn, checkOut (YYYY-MM-DD), numGuests. Devuelve la reserva con su código RML.",
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL + '/api/v1/reservations/crear?hotelId=' + $env.HOTEL_ID + '&channel=WHATSAPP&_s=' + $env.N8N_WEBHOOK_SECRET + '&roomId={roomId}&guestName={guestName}&guestPhone={guestPhone}&checkIn={checkIn}&checkOut={checkOut}&numGuests={numGuests}' }}",
+        "placeholderDefinitions": {
+          "values": [
+            {"name": "roomId",     "description": "ID de la habitación (campo id de consultar_habitaciones)", "type": "string"},
+            {"name": "guestName",  "description": "Nombre completo del huésped",                              "type": "string"},
+            {"name": "guestPhone", "description": "Teléfono del huésped (del sistema, sin +)",                "type": "string"},
+            {"name": "checkIn",    "description": "Fecha check-in YYYY-MM-DD",                                "type": "string"},
+            {"name": "checkOut",   "description": "Fecha check-out YYYY-MM-DD",                               "type": "string"},
+            {"name": "numGuests",  "description": "Cantidad de personas (número entero)",                     "type": "number"}
           ]
         },
         "options": {}
@@ -168,13 +149,12 @@
     {
       "parameters": {
         "name": "consultar_reserva",
-        "description": "Busca una reserva por su código RML (ej: RML-1234). Devuelve los detalles incluyendo el campo 'id' interno necesario para modificar o cancelar.",
+        "description": "Busca una reserva por su código RML (ej: RML-1234). Devuelve los detalles incluyendo el 'id' interno necesario para modificar o cancelar.",
         "method": "GET",
-        "url": "={{ $env.BACKEND_URL + '/api/v1/reservations/' + $fromAI('code', 'Código RML de la reserva, ej: RML-1234', 'string') }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {"name": "X-N8N-Secret", "value": "={{ $env.N8N_WEBHOOK_SECRET }}"}
+        "url": "={{ $env.BACKEND_URL + '/api/v1/reservations?_s=' + $env.N8N_WEBHOOK_SECRET + '&code={code}' }}",
+        "placeholderDefinitions": {
+          "values": [
+            {"name": "code", "description": "Código RML de la reserva, ej: RML-1234", "type": "string"}
           ]
         },
         "options": {}
@@ -189,22 +169,15 @@
     {
       "parameters": {
         "name": "modificar_reserva",
-        "description": "Modifica una reserva existente. Requiere el 'id' interno (obtenido de consultar_reserva). Solo incluí los campos que cambian: checkIn, checkOut y/o numGuests.",
-        "method": "PATCH",
-        "url": "={{ $env.BACKEND_URL + '/api/v1/reservations/' + $fromAI('id', 'ID interno de la reserva (campo id del resultado de consultar_reserva)', 'string') }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {"name": "X-N8N-Secret", "value": "={{ $env.N8N_WEBHOOK_SECRET }}"}
-          ]
-        },
-        "sendBody": true,
-        "contentType": "json",
-        "bodyParameters": {
-          "parameters": [
-            {"name": "checkIn",   "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('checkIn',   'Nueva fecha check-in YYYY-MM-DD (omitir si no cambia)', 'string') }}"},
-            {"name": "checkOut",  "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('checkOut',  'Nueva fecha check-out YYYY-MM-DD (omitir si no cambia)', 'string') }}"},
-            {"name": "numGuests", "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('numGuests', 'Nueva cantidad de personas (omitir si no cambia)', 'number') }}"}
+        "description": "Modifica fechas o cantidad de personas de una reserva. Requiere el 'id' interno (de consultar_reserva). Pasar solo los campos que cambian.",
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL + '/api/v1/reservations/modificar?_s=' + $env.N8N_WEBHOOK_SECRET + '&id={id}&checkIn={checkIn}&checkOut={checkOut}&numGuests={numGuests}' }}",
+        "placeholderDefinitions": {
+          "values": [
+            {"name": "id",        "description": "ID interno de la reserva (campo id de consultar_reserva)",   "type": "string"},
+            {"name": "checkIn",   "description": "Nueva fecha check-in YYYY-MM-DD (omitir si no cambia)",      "type": "string"},
+            {"name": "checkOut",  "description": "Nueva fecha check-out YYYY-MM-DD (omitir si no cambia)",     "type": "string"},
+            {"name": "numGuests", "description": "Nueva cantidad de personas (omitir si no cambia)",           "type": "number"}
           ]
         },
         "options": {}
@@ -219,13 +192,12 @@
     {
       "parameters": {
         "name": "cancelar_reserva",
-        "description": "Cancela una reserva (la marca como CANCELLED, no la borra). Requiere el 'id' interno (obtenido de consultar_reserva). SOLO ejecutar tras confirmación EXPLÍCITA del huésped.",
-        "method": "DELETE",
-        "url": "={{ $env.BACKEND_URL + '/api/v1/reservations/' + $fromAI('id', 'ID interno de la reserva (campo id del resultado de consultar_reserva)', 'string') }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {"name": "X-N8N-Secret", "value": "={{ $env.N8N_WEBHOOK_SECRET }}"}
+        "description": "Cancela una reserva (estado CANCELLED). Requiere el 'id' interno (de consultar_reserva). SOLO ejecutar tras confirmación EXPLÍCITA del huésped.",
+        "method": "GET",
+        "url": "={{ $env.BACKEND_URL + '/api/v1/reservations/cancelar?_s=' + $env.N8N_WEBHOOK_SECRET + '&id={id}' }}",
+        "placeholderDefinitions": {
+          "values": [
+            {"name": "id", "description": "ID interno de la reserva a cancelar", "type": "string"}
           ]
         },
         "options": {}
@@ -240,17 +212,17 @@
 
   "pinData": {},
   "connections": {
-    "WhatsApp Trigger":          {"main":           [[{"node": "Extraer datos del mensaje", "type": "main",            "index": 0}]]},
-    "Extraer datos del mensaje": {"main":           [[{"node": "AI Agent – Roomly",         "type": "main",            "index": 0}]]},
-    "AI Agent – Roomly":         {"main":           [[{"node": "Enviar respuesta al usuario","type": "main",            "index": 0}]]},
-    "Enviar respuesta al usuario":{"main":          [[{"node": "Logging de interacción",     "type": "main",            "index": 0}]]},
-    "Gemini Flash":              {"ai_languageModel":[[{"node": "AI Agent – Roomly",         "type": "ai_languageModel","index": 0}]]},
-    "Memoria por usuario":       {"ai_memory":      [[{"node": "AI Agent – Roomly",         "type": "ai_memory",       "index": 0}]]},
-    "consultar_habitaciones":    {"ai_tool":        [[{"node": "AI Agent – Roomly",         "type": "ai_tool",         "index": 0}]]},
-    "crear_reserva":             {"ai_tool":        [[{"node": "AI Agent – Roomly",         "type": "ai_tool",         "index": 0}]]},
-    "consultar_reserva":         {"ai_tool":        [[{"node": "AI Agent – Roomly",         "type": "ai_tool",         "index": 0}]]},
-    "modificar_reserva":         {"ai_tool":        [[{"node": "AI Agent – Roomly",         "type": "ai_tool",         "index": 0}]]},
-    "cancelar_reserva":          {"ai_tool":        [[{"node": "AI Agent – Roomly",         "type": "ai_tool",         "index": 0}]]}
+    "WhatsApp Trigger":             {"main":             [[{"node": "Extraer datos del mensaje",   "type": "main",             "index": 0}]]},
+    "Extraer datos del mensaje":    {"main":             [[{"node": "AI Agent – Roomly",           "type": "main",             "index": 0}]]},
+    "AI Agent – Roomly":            {"main":             [[{"node": "Enviar respuesta al usuario", "type": "main",             "index": 0}]]},
+    "Enviar respuesta al usuario":  {"main":             [[{"node": "Logging de interacción",      "type": "main",             "index": 0}]]},
+    "Gemini Flash":                 {"ai_languageModel": [[{"node": "AI Agent – Roomly",           "type": "ai_languageModel", "index": 0}]]},
+    "Memoria por usuario":          {"ai_memory":        [[{"node": "AI Agent – Roomly",           "type": "ai_memory",        "index": 0}]]},
+    "consultar_habitaciones":       {"ai_tool":          [[{"node": "AI Agent – Roomly",           "type": "ai_tool",          "index": 0}]]},
+    "crear_reserva":                {"ai_tool":          [[{"node": "AI Agent – Roomly",           "type": "ai_tool",          "index": 0}]]},
+    "consultar_reserva":            {"ai_tool":          [[{"node": "AI Agent – Roomly",           "type": "ai_tool",          "index": 0}]]},
+    "modificar_reserva":            {"ai_tool":          [[{"node": "AI Agent – Roomly",           "type": "ai_tool",          "index": 0}]]},
+    "cancelar_reserva":             {"ai_tool":          [[{"node": "AI Agent – Roomly",           "type": "ai_tool",          "index": 0}]]}
   },
 
   "active": false,

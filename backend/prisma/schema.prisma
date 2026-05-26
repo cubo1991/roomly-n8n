@@ -157,6 +157,8 @@ model Reservation {
   totalPrice Decimal? @db.Decimal(10, 2)
   notes      String?
 
+  calendarEventId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
