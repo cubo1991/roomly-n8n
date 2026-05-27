@@ -25,6 +25,9 @@ export default async function DashboardLayout({
               <Link href="/dashboard/rooms" className="hover:text-white transition-colors">
                 Habitaciones
               </Link>
+              <Link href="/dashboard/configuracion" className="hover:text-white transition-colors">
+                Configuración
+              </Link>
             </nav>
           </div>
           <form
