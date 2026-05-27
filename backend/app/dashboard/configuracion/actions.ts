@@ -18,6 +18,17 @@ import {
 /** Used only by DeleteButton (called imperatively, not via form action=). */
 export type DeleteResult = { ok: true } | { ok: false; error: string };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// Returns "fieldName: message" so the error boundary shows exactly which field failed.
+function firstZodError(error: { flatten(): { fieldErrors: Record<string, string[] | undefined>; formErrors: string[] } }): string {
+  const flat = error.flatten();
+  for (const [field, msgs] of Object.entries(flat.fieldErrors)) {
+    if (msgs && msgs.length > 0) return `${field}: ${msgs[0]}`;
+  }
+  return flat.formErrors[0] ?? "Datos inválidos";
+}
+
 // ─── Hotel ───────────────────────────────────────────────────────────────────
 
 export async function updateHotel(id: string, data: FormData): Promise<void> {
@@ -30,8 +41,7 @@ export async function updateHotel(id: string, data: FormData): Promise<void> {
   });
 
   if (!parsed.success) {
-    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
-    throw new Error(first ?? "Datos inválidos");
+    throw new Error(firstZodError(parsed.error));
   }
 
   await prisma.hotel.update({ where: { id }, data: parsed.data });
@@ -56,8 +66,7 @@ export async function createRoomType(data: FormData): Promise<void> {
   });
 
   if (!parsed.success) {
-    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
-    throw new Error(first ?? "Datos inválidos");
+    throw new Error(firstZodError(parsed.error));
   }
 
   await prisma.roomType.create({ data: parsed.data });
@@ -78,8 +87,7 @@ export async function updateRoomType(id: string, data: FormData): Promise<void> 
   });
 
   if (!parsed.success) {
-    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
-    throw new Error(first ?? "Datos inválidos");
+    throw new Error(firstZodError(parsed.error));
   }
 
   await prisma.roomType.update({ where: { id }, data: parsed.data });
@@ -102,8 +110,7 @@ export async function deleteRoomType(id: string): Promise<DeleteResult> {
 // ─── Rooms ────────────────────────────────────────────────────────────────────
 
 export async function createRoom(data: FormData): Promise<void> {
-  // Pre-validate required selects before Zod to show readable messages
-  const typeId = (data.get("typeId") as string) ?? "";
+  const typeId = (data.get("typeId") as string)?.trim() ?? "";
   if (!typeId) throw new Error("Seleccioná un tipo de habitación");
 
   const number = (data.get("number") as string)?.trim() ?? "";
@@ -118,8 +125,7 @@ export async function createRoom(data: FormData): Promise<void> {
   });
 
   if (!parsed.success) {
-    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
-    throw new Error(first ?? "Datos inválidos");
+    throw new Error(firstZodError(parsed.error));
   }
 
   try {
@@ -150,8 +156,7 @@ export async function updateRoom(id: string, data: FormData): Promise<void> {
   });
 
   if (!parsed.success) {
-    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
-    throw new Error(first ?? "Datos inválidos");
+    throw new Error(firstZodError(parsed.error));
   }
 
   await prisma.room.update({ where: { id }, data: parsed.data });
@@ -178,7 +183,7 @@ export async function deleteRoom(id: string): Promise<DeleteResult> {
 // ─── Rate Plans ───────────────────────────────────────────────────────────────
 
 export async function createRatePlan(data: FormData): Promise<void> {
-  const typeId = (data.get("typeId") as string) ?? "";
+  const typeId = (data.get("typeId") as string)?.trim() ?? "";
   if (!typeId) throw new Error("Seleccioná un tipo de habitación para la tarifa");
 
   const parsed = CreateRatePlanSchema.safeParse({
@@ -192,8 +197,7 @@ export async function createRatePlan(data: FormData): Promise<void> {
   });
 
   if (!parsed.success) {
-    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
-    throw new Error(first ?? "Datos inválidos");
+    throw new Error(firstZodError(parsed.error));
   }
 
   await prisma.ratePlan.create({
@@ -217,8 +221,7 @@ export async function updateRatePlan(id: string, data: FormData): Promise<void> 
   });
 
   if (!parsed.success) {
-    const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
-    throw new Error(first ?? "Datos inválidos");
+    throw new Error(firstZodError(parsed.error));
   }
 
   const { validFrom, validTo, ...rest } = parsed.data;

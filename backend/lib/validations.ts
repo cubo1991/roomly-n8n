@@ -10,8 +10,8 @@ const dateString = z
 
 export const CreateReservationSchema = z
   .object({
-    hotelId: z.string().cuid(),
-    roomId: z.string().cuid(),
+    hotelId: z.string().min(1),
+    roomId: z.string().min(1),
 
     // Format A: nested guest object (dashboard / direct API)
     guest: z
@@ -35,7 +35,7 @@ export const CreateReservationSchema = z
     channel: z
       .enum(["WHATSAPP", "WEB", "PHONE", "OTA", "DIRECT"])
       .default("WHATSAPP"),
-    ratePlanId: z.string().cuid().optional(),
+    ratePlanId: z.string().min(1).optional(),
     notes: z.string().max(500).optional(),
     // RML code: optional. If provided by n8n it's preserved; otherwise generated server-side.
     code: z
@@ -74,7 +74,7 @@ export const UpdateReservationSchema = z
       ])
       .optional(),
     notes: z.string().max(500).optional(),
-    roomId: z.string().cuid().optional(),
+    roomId: z.string().min(1).optional(),
   })
   // Strip empty strings that n8n may send for unfilled optional fields
   .transform((data) =>
@@ -97,8 +97,8 @@ export type UpdateReservationInput = z.infer<typeof UpdateReservationSchema>;
 // ─── Room ────────────────────────────────────────────────────────────────────
 
 export const CreateRoomSchema = z.object({
-  hotelId: z.string().cuid(),
-  typeId: z.string().cuid(),
+  hotelId: z.string().min(1),
+  typeId: z.string().min(1),
   number: z.string().min(1).max(10),
   floor: z.coerce.number().int().optional(),
   notes: z.string().optional(),
@@ -109,7 +109,7 @@ export type CreateRoomInput = z.infer<typeof CreateRoomSchema>;
 // ─── Guest ───────────────────────────────────────────────────────────────────
 
 export const CreateGuestSchema = z.object({
-  hotelId: z.string().cuid(),
+  hotelId: z.string().min(1),
   name: z.string().min(2).max(100),
   phone: z.string().min(8).max(20),
   email: z.string().email().optional(),
@@ -136,7 +136,7 @@ export type UpdateHotelInput = z.infer<typeof UpdateHotelSchema>;
 export const UpdateRoomSchema = z.object({
   number: z.string().min(1).max(10).optional(),
   floor: z.coerce.number().int().optional(),
-  typeId: z.string().cuid().optional(),
+  typeId: z.string().min(1).optional(),
   status: z
     .enum(["AVAILABLE", "OCCUPIED", "MAINTENANCE", "OUT_OF_ORDER"])
     .optional(),
@@ -148,7 +148,7 @@ export type UpdateRoomInput = z.infer<typeof UpdateRoomSchema>;
 // ─── RoomType ─────────────────────────────────────────────────────────────────
 
 export const CreateRoomTypeSchema = z.object({
-  hotelId: z.string().cuid(),
+  hotelId: z.string().min(1),
   name: z.string().min(2).max(100),
   description: z.string().optional(),
   maxGuests: z.coerce.number().int().min(1).max(20).default(2),
@@ -170,8 +170,8 @@ export type UpdateRoomTypeInput = z.infer<typeof UpdateRoomTypeSchema>;
 
 export const CreateRatePlanSchema = z
   .object({
-    hotelId: z.string().cuid(),
-    typeId: z.string().cuid(),
+    hotelId: z.string().min(1),
+    typeId: z.string().min(1),
     name: z.string().min(2).max(100),
     pricePerNight: z.coerce.number().positive(),
     validFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
