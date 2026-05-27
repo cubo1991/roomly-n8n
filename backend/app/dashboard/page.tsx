@@ -12,7 +12,7 @@ export default async function DashboardPage() {
         where: { hotelId: hotel.id },
         include: {
           room: { select: { number: true } },
-          guest: { select: { name: true, phone: true } },
+          guest: { select: { id: true, name: true, phone: true, email: true, dni: true } },
         },
         orderBy: { checkIn: "asc" },
         take: 100,

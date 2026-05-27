@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import EditableGuestCell from "@/components/dashboard/EditableGuestCell";
 
 type Reservation = {
   id: string;
@@ -19,7 +20,13 @@ type Reservation = {
   checkOut: Date;
   numGuests: number;
   room: { number: string };
-  guest: { name: string; phone: string };
+  guest: {
+    id: string;
+    name: string;
+    phone: string;
+    email?: string | null;
+    dni?: string | null;
+  };
 };
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -80,9 +87,14 @@ export default function ReservationTable({
           return (
             <TableRow key={r.id} className="border-zinc-800 hover:bg-zinc-800/50">
               <TableCell className="font-mono text-blue-400">{r.code}</TableCell>
-              <TableCell>
-                <div className="font-medium">{r.guest.name}</div>
-                <div className="text-zinc-500 text-xs">{r.guest.phone}</div>
+              <TableCell className="align-top py-3">
+                <EditableGuestCell
+                  guestId={r.guest.id}
+                  name={r.guest.name}
+                  phone={r.guest.phone}
+                  email={r.guest.email}
+                  dni={r.guest.dni}
+                />
               </TableCell>
               <TableCell>{r.room.number}</TableCell>
               <TableCell>{formatDate(r.checkIn)}</TableCell>
