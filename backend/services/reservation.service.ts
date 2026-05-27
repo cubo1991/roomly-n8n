@@ -49,9 +49,13 @@ export async function createReservation(input: CreateReservationInput) {
   const code = input.code ?? (await uniqueCode());
 
   // 3. Upsert guest (find by hotel + phone, create if new)
+  // IMPORTANTE: no se actualiza el nombre en el update para no pisar el nombre
+  // registrado en reservas anteriores del mismo huésped. Email y DNI sí se
+  // actualizan porque son datos que el huésped puede corregir sin afectar el
+  // historial (no aparecen en la vista de reservas pasadas).
   const guestRecord = await prisma.guest.upsert({
     where: { hotelId_phone: { hotelId, phone: guest.phone } },
-    update: { name: guest.name, email: guest.email ?? undefined, dni: guest.dni ?? undefined },
+    update: { email: guest.email ?? undefined, dni: guest.dni ?? undefined },
     create: {
       hotelId,
       name: guest.name,

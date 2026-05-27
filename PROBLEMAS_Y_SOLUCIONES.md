@@ -203,4 +203,38 @@ curl "https://<ngrok-url>/webhook/roomly-wa?hub.mode=subscribe&hub.verify_token=
 
 ---
 
+## [003] Nombre del huésped se pisa entre reservas del mismo teléfono
+
+**Fecha:** 2026-05-27  
+**Síntoma:** Al crear una nueva reserva con un teléfono que ya tenía reservas anteriores, el nombre que se enviaba en la nueva reserva sobreescribía el nombre en **todas** las reservas previas del mismo huésped.
+
+### Causa
+
+En `reservation.service.ts`, el upsert del huésped incluía `name` en el bloque `update`:
+
+```typescript
+const guestRecord = await prisma.guest.upsert({
+  where: { hotelId_phone: { hotelId, phone: guest.phone } },
+  update: { name: guest.name, email: ..., dni: ... }, // ← pisaba el nombre
+  create: { ... },
+});
+```
+
+El modelo de datos tiene **un registro `Guest` por teléfono**, y todas las reservas de ese huésped apuntan al mismo `guestId`. Al actualizar el nombre del `Guest`, el cambio se reflejaba en todo el historial.
+
+### Solución
+
+Quitar `name` del bloque `update`. El nombre se registra solo al **crear** el huésped (primera reserva). Las siguientes reservas con el mismo teléfono reutilizan el nombre ya guardado.
+
+```typescript
+update: { email: guest.email ?? undefined, dni: guest.dni ?? undefined },
+```
+
+`email` y `dni` sí se permiten actualizar porque son datos corregibles que no afectan el historial visible.
+
+### Archivo modificado
+`backend/services/reservation.service.ts`
+
+---
+
 *Más problemas se irán agregando a este archivo.*
