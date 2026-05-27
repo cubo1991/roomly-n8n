@@ -20,16 +20,21 @@ export default async function DashboardPage() {
     : [];
 
   // Stats
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  // Use UTC midnight for comparisons: Prisma @db.Date fields come back as
+  // midnight UTC, so local-time Date objects would be 3 h off in UTC-3.
+  const now = new Date();
+  const todayUTC = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
+  const tomorrowUTC = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+  );
 
   const checkinsToday = reservations.filter(
     (r) =>
       r.status === "CONFIRMED" &&
-      r.checkIn >= today &&
-      r.checkIn < tomorrow
+      r.checkIn >= todayUTC &&
+      r.checkIn < tomorrowUTC
   ).length;
 
   const active = reservations.filter(

@@ -39,10 +39,13 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 };
 
 function formatDate(d: Date) {
+  // Dates come from Prisma as midnight UTC (e.g. 2026-05-27T00:00:00.000Z).
+  // Without timeZone: "UTC", the browser (UTC-3) would render "26/05/2026".
   return new Date(d).toLocaleDateString("es-AR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
