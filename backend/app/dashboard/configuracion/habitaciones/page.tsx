@@ -127,7 +127,7 @@ export default async function HabitacionesConfigPage() {
                       <label className="block text-xs text-zinc-400 mb-1">Tipo</label>
                       <select
                         name="typeId"
-                        defaultValue={room.type.name}
+                        defaultValue={room.typeId}
                         className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                       >
                         {roomTypes.map((t) => (

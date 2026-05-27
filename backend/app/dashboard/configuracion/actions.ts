@@ -102,10 +102,17 @@ export async function deleteRoomType(id: string): Promise<DeleteResult> {
 // ─── Rooms ────────────────────────────────────────────────────────────────────
 
 export async function createRoom(data: FormData): Promise<void> {
+  // Pre-validate required selects before Zod to show readable messages
+  const typeId = (data.get("typeId") as string) ?? "";
+  if (!typeId) throw new Error("Seleccioná un tipo de habitación");
+
+  const number = (data.get("number") as string)?.trim() ?? "";
+  if (!number) throw new Error("El número de habitación es obligatorio");
+
   const parsed = CreateRoomSchema.safeParse({
     hotelId: data.get("hotelId"),
-    typeId: data.get("typeId"),
-    number: data.get("number"),
+    typeId,
+    number,
     floor: data.get("floor") || undefined,
     notes: data.get("notes") || undefined,
   });
@@ -171,9 +178,12 @@ export async function deleteRoom(id: string): Promise<DeleteResult> {
 // ─── Rate Plans ───────────────────────────────────────────────────────────────
 
 export async function createRatePlan(data: FormData): Promise<void> {
+  const typeId = (data.get("typeId") as string) ?? "";
+  if (!typeId) throw new Error("Seleccioná un tipo de habitación para la tarifa");
+
   const parsed = CreateRatePlanSchema.safeParse({
     hotelId: data.get("hotelId"),
-    typeId: data.get("typeId"),
+    typeId,
     name: data.get("name"),
     pricePerNight: data.get("pricePerNight"),
     validFrom: data.get("validFrom"),
