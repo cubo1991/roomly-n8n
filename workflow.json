@@ -112,7 +112,7 @@
       "parameters": {
         "operation": "send",
         "phoneNumberId": "={{ $('Extraer datos del mensaje').item.json.phoneNumberId }}",
-        "recipientPhoneNumber": "={{ $env.WHATSAPP_RECIPIENT }}",
+        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.from }}",
         "textBody": "={{ $json.output }}",
         "additionalFields": {}
       },

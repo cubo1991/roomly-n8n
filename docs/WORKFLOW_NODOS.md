@@ -184,10 +184,8 @@ Envía la respuesta del AI Agent al usuario por WhatsApp.
 | Parámetro | Valor |
 |-----------|-------|
 | `phoneNumberId` | `$('Extraer datos del mensaje').item.json.phoneNumberId` |
-| `recipientPhoneNumber` | `$env.WHATSAPP_RECIPIENT` *(ver nota)* |
+| `recipientPhoneNumber` | `$('Extraer datos del mensaje').item.json.from` |
 | `textBody` | `$json.output` (respuesta del agente) |
-
-> **⚠️ Nota:** `recipientPhoneNumber` usa `$env.WHATSAPP_RECIPIENT` (número fijo del `.env`). Esto es un placeholder de desarrollo — en producción debería usar `$('Extraer datos del mensaje').item.json.from` para responder al número real del usuario.
 
 ---
 
@@ -393,4 +391,4 @@ Todas se definen en `C:\Users\David\roomly-n8n\.env` y se pasan al contenedor de
 | `BACKEND_URL` | URL base del backend Next.js (ej: `http://host.docker.internal:3000`) |
 | `HOTEL_ID` | ID del hotel en la base de datos |
 | `N8N_WEBHOOK_SECRET` | Secret para autenticar requests de n8n al backend (parámetro `_s`) |
-| `WHATSAPP_RECIPIENT` | Número de teléfono destino para los mensajes (desarrollo) |
+| `WHATSAPP_RECIPIENT` | ~~Número de teléfono destino~~ — ya no se usa. El workflow usa el número dinámico del remitente (`from`). |
