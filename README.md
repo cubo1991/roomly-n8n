@@ -174,7 +174,9 @@ roomly-n8n/
 
 ## API Reference
 
-Todos los endpoints requieren el parámetro `_s=<N8N_WEBHOOK_SECRET>`.
+Todos los endpoints requieren el parámetro `_s=<N8N_WEBHOOK_SECRET>` **o** una sesión de NextAuth activa.
+
+### Endpoints del bot (consumidos por n8n)
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
@@ -185,8 +187,46 @@ Todos los endpoints requieren el parámetro `_s=<N8N_WEBHOOK_SECRET>`.
 | `GET` | `/api/v1/reservations/cancelar` | Cancelar reserva (`id`) |
 
 > **¿Por qué todo es GET?**  
-> Esta API es consumida exclusivamente por el nodo `toolHttpRequest` de n8n, que el AI Agent usa para llamar tools. Ese nodo construye la URL con placeholders (`{param}`) en la query string, lo que hace que GET sea la opción más simple: los parámetros opcionales se omiten sin romper nada y no hay que armar un body JSON con templates.  
-> Semánticamente debería ser `PATCH` para modificar y `DELETE` para cancelar, pero dado que es una API interna no expuesta al público, el pragmatismo gana. Si en el futuro se expone un dashboard u otros clientes, se agregarán los endpoints REST convencionales en paralelo.
+> Consumidos por `toolHttpRequest` de n8n, que construye la URL con placeholders (`{param}`) en la query string. GET es la opción más simple: los parámetros opcionales se omiten sin romper nada y no hay que armar un body JSON con templates. Semánticamente debería ser `PATCH`/`DELETE`, pero dado que es una API interna el pragmatismo gana.
+
+### Endpoints de administración (gestión del hotel)
+
+Usan métodos REST convencionales. Requieren sesión de NextAuth o `_s=<secret>`.
+
+#### Hotel
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/v1/hotels` | Listar todos los hoteles |
+| `POST` | `/api/v1/hotels` | Crear hotel (`name`, `slug`, `address?`, `phone?`, `email?`) |
+| `GET` | `/api/v1/hotels/:id` | Detalle del hotel con tipos de habitación |
+| `PATCH` | `/api/v1/hotels/:id` | Actualizar info del hotel |
+
+#### Tipos de habitación
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/v1/room-types?hotelId=` | Listar tipos de habitación |
+| `POST` | `/api/v1/room-types` | Crear tipo (`hotelId`, `name`, `maxGuests?`, `amenities?`) |
+| `GET` | `/api/v1/room-types/:id` | Detalle con habitaciones y tarifas |
+| `PATCH` | `/api/v1/room-types/:id` | Actualizar nombre, descripción, amenities |
+| `DELETE` | `/api/v1/room-types/:id` | Eliminar (bloqueado si tiene habitaciones) |
+
+#### Habitaciones
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/v1/rooms` | Listar habitaciones (con `checkIn`/`checkOut` filtra disponibles) |
+| `POST` | `/api/v1/rooms` | Crear habitación (`hotelId`, `typeId`, `number`, `floor?`) |
+| `GET` | `/api/v1/rooms/:id` | Detalle de habitación |
+| `PATCH` | `/api/v1/rooms/:id` | Actualizar número, piso, tipo, estado, notas |
+| `DELETE` | `/api/v1/rooms/:id` | Eliminar (bloqueado si tiene reservas activas) |
+
+#### Planes de tarifa
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| `GET` | `/api/v1/rate-plans?hotelId=` | Listar tarifas (filtra por `typeId?`) |
+| `POST` | `/api/v1/rate-plans` | Crear tarifa (`hotelId`, `typeId`, `name`, `pricePerNight`, `validFrom`, `validTo`) |
+| `GET` | `/api/v1/rate-plans/:id` | Detalle de tarifa |
+| `PATCH` | `/api/v1/rate-plans/:id` | Actualizar precio, fechas de vigencia |
+| `DELETE` | `/api/v1/rate-plans/:id` | Eliminar (bloqueado si tiene reservas activas) |
 
 ## Notas importantes
 

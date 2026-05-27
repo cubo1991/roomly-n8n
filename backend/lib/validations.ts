@@ -119,6 +119,88 @@ export const CreateGuestSchema = z.object({
 
 export type CreateGuestInput = z.infer<typeof CreateGuestSchema>;
 
+// ─── Hotel ───────────────────────────────────────────────────────────────────
+
+export const UpdateHotelSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  address: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email().optional(),
+  timezone: z.string().optional(),
+});
+
+export type UpdateHotelInput = z.infer<typeof UpdateHotelSchema>;
+
+// ─── Room (update) ────────────────────────────────────────────────────────────
+
+export const UpdateRoomSchema = z.object({
+  number: z.string().min(1).max(10).optional(),
+  floor: z.coerce.number().int().optional(),
+  typeId: z.string().cuid().optional(),
+  status: z
+    .enum(["AVAILABLE", "OCCUPIED", "MAINTENANCE", "OUT_OF_ORDER"])
+    .optional(),
+  notes: z.string().optional(),
+});
+
+export type UpdateRoomInput = z.infer<typeof UpdateRoomSchema>;
+
+// ─── RoomType ─────────────────────────────────────────────────────────────────
+
+export const CreateRoomTypeSchema = z.object({
+  hotelId: z.string().cuid(),
+  name: z.string().min(2).max(100),
+  description: z.string().optional(),
+  maxGuests: z.coerce.number().int().min(1).max(20).default(2),
+  amenities: z.array(z.string()).default([]),
+});
+
+export type CreateRoomTypeInput = z.infer<typeof CreateRoomTypeSchema>;
+
+export const UpdateRoomTypeSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  description: z.string().optional(),
+  maxGuests: z.coerce.number().int().min(1).max(20).optional(),
+  amenities: z.array(z.string()).optional(),
+});
+
+export type UpdateRoomTypeInput = z.infer<typeof UpdateRoomTypeSchema>;
+
+// ─── RatePlan ─────────────────────────────────────────────────────────────────
+
+export const CreateRatePlanSchema = z
+  .object({
+    hotelId: z.string().cuid(),
+    typeId: z.string().cuid(),
+    name: z.string().min(2).max(100),
+    pricePerNight: z.coerce.number().positive(),
+    validFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+    validTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD"),
+    minNights: z.coerce.number().int().min(1).default(1),
+  })
+  .refine((d) => new Date(d.validTo) > new Date(d.validFrom), {
+    message: "validTo must be after validFrom",
+    path: ["validTo"],
+  });
+
+export type CreateRatePlanInput = z.infer<typeof CreateRatePlanSchema>;
+
+export const UpdateRatePlanSchema = z
+  .object({
+    name: z.string().min(2).max(100).optional(),
+    pricePerNight: z.coerce.number().positive().optional(),
+    validFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    validTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    minNights: z.coerce.number().int().min(1).optional(),
+  })
+  .refine(
+    (d) =>
+      !d.validFrom || !d.validTo || new Date(d.validTo) > new Date(d.validFrom),
+    { message: "validTo must be after validFrom", path: ["validTo"] }
+  );
+
+export type UpdateRatePlanInput = z.infer<typeof UpdateRatePlanSchema>;
+
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 export const LoginSchema = z.object({
