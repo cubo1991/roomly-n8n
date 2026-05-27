@@ -233,4 +233,12 @@ Usan métodos REST convencionales. Requieren sesión de NextAuth o `_s=<secret>`
 - El modelo Gemini correcto es `models/gemini-3.1-flash-lite`. Los modelos `gemini-2.5-flash` (429) y `gemini-1.5-flash` (404) no funcionan en free tier.
 - El `--env-file` es obligatorio en el comando `docker compose` o el contenedor arranca sin variables.
 - Google Calendar es un espejo: si se cae o falla, las reservas siguen funcionando normalmente.
-- Ver `PROBLEMAS_Y_SOLUCIONES.md` para bugs conocidos y sus soluciones.
+
+## Documentación
+
+| Archivo | Contenido |
+|---------|-----------|
+| [`docs/PROBLEMAS_Y_SOLUCIONES.md`](docs/PROBLEMAS_Y_SOLUCIONES.md) | Registro de bugs encontrados y cómo se resolvieron |
+| [`docs/WORKFLOW_NODOS.md`](docs/WORKFLOW_NODOS.md) | Descripción de cada nodo del workflow de n8n |
+| [`docs/BACKEND.md`](docs/BACKEND.md) | Arquitectura y estructura del backend Next.js |
+| [`docs/SSE_TIEMPO_REAL.md`](docs/SSE_TIEMPO_REAL.md) | Cómo funciona el tiempo real en el dashboard (SSE + Redis) |

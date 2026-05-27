@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import LiveUpdates from "@/components/dashboard/LiveUpdates";
 import { signOut } from "@/auth";
 
 export default async function DashboardLayout({
@@ -47,6 +48,9 @@ export default async function DashboardLayout({
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
+
+      {/* SSE listener — updates the dashboard in real time when reservations change */}
+      <LiveUpdates />
     </div>
   );
 }

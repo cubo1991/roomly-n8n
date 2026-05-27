@@ -1,8 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { reservationQueue } from "@/lib/queue";
+import { redis } from "@/lib/redis";
 import { isRoomAvailable } from "./availability.service";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/lib/calendar";
 import type { CreateReservationInput, UpdateReservationInput } from "@/lib/validations";
+import { DASHBOARD_CHANNEL, type DashboardEvent } from "@/lib/events";
+
+/** Fire-and-forget publish. Never throws — Redis being down must not abort a reservation. */
+function publishEvent(event: DashboardEvent): void {
+  redis.publish(DASHBOARD_CHANNEL, JSON.stringify(event)).catch((err) => {
+    console.warn("[events] Redis publish failed:", err?.message);
+  });
+}
 
 // ─── Code generator ────────────────────────────────────────────────────────────
 
@@ -111,7 +120,15 @@ export async function createReservation(input: CreateReservationInput) {
     }),
   ]);
 
-  // 6. Create Google Calendar event (fire-and-forget; failure does NOT abort the reservation)
+  // 6. Notify dashboard via SSE (fire-and-forget)
+  publishEvent({
+    type: "NEW_RESERVATION",
+    code: reservation.code,
+    guestName: reservation.guest.name,
+    room: reservation.room.number,
+  });
+
+  // 7. Create Google Calendar event (fire-and-forget; failure does NOT abort the reservation)
   const calendarEventId = await createCalendarEvent({
     code:       reservation.code,
     guestName:  reservation.guest.name,
@@ -184,6 +201,9 @@ export async function updateReservation(
     return res;
   });
 
+  // Notify dashboard
+  publishEvent({ type: "RESERVATION_UPDATED", code: updated.code });
+
   // Update Google Calendar event if one exists
   if (current.calendarEventId) {
     await updateCalendarEvent(current.calendarEventId, {
@@ -226,6 +246,9 @@ export async function cancelReservation(id: string, performedBy = "admin") {
 
     return res;
   });
+
+  // Notify dashboard
+  publishEvent({ type: "RESERVATION_CANCELLED", code: current.code });
 
   // Remove Google Calendar event (fire-and-forget)
   if (current.calendarEventId) {
