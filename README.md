@@ -184,6 +184,10 @@ Todos los endpoints requieren el parámetro `_s=<N8N_WEBHOOK_SECRET>`.
 | `GET` | `/api/v1/reservations/modificar` | Modificar reserva (`id`, campos a cambiar) |
 | `GET` | `/api/v1/reservations/cancelar` | Cancelar reserva (`id`) |
 
+> **¿Por qué todo es GET?**  
+> Esta API es consumida exclusivamente por el nodo `toolHttpRequest` de n8n, que el AI Agent usa para llamar tools. Ese nodo construye la URL con placeholders (`{param}`) en la query string, lo que hace que GET sea la opción más simple: los parámetros opcionales se omiten sin romper nada y no hay que armar un body JSON con templates.  
+> Semánticamente debería ser `PATCH` para modificar y `DELETE` para cancelar, pero dado que es una API interna no expuesta al público, el pragmatismo gana. Si en el futuro se expone un dashboard u otros clientes, se agregarán los endpoints REST convencionales en paralelo.
+
 ## Notas importantes
 
 - El modelo Gemini correcto es `models/gemini-3.1-flash-lite`. Los modelos `gemini-2.5-flash` (429) y `gemini-1.5-flash` (404) no funcionan en free tier.
