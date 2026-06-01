@@ -1,31 +1,113 @@
-version: "3.8"
-
 # ============================================================
-# Roomly Stack – n8n
+# Roomly Stack
 # 1. Copiá .env.example → .env y completá los valores
 # 2. docker compose up -d
 # ============================================================
 
+networks:
+  roomly_network:
+    driver: bridge
+
+volumes:
+  n8n_data:
+  postgres_data:
+  redis_data:
+
 services:
 
+  # ── n8n (automatización WhatsApp) ────────────────────────
   n8n:
     image: n8nio/n8n
     container_name: n8nNgrok
     restart: unless-stopped
+    networks:
+      - roomly_network
     ports:
       - "5678:5678"
     environment:
       - N8N_TRUST_PROXY=true
       - N8N_SECURE_COOKIE=false
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - N8N_HOST=${N8N_HOST}
       - N8N_PORT=5678
       - N8N_PROTOCOL=https
       - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_EDITOR_BASE_URL=${WEBHOOK_URL}
       - NODE_ENV=production
       - EXECUTIONS_TIMEOUT=300
       - EXECUTIONS_TIMEOUT_MAX=600
+      # ── Backend integration ──────────────────────────────────
+      # En Windows Docker Desktop usa host.docker.internal para llegar al host
+      - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:3000}
+      - HOTEL_ID=${HOTEL_ID}
+      - N8N_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET}
+      - WHATSAPP_RECIPIENT=${WHATSAPP_RECIPIENT}
     volumes:
       - n8n_data:/home/node/.n8n
 
-volumes:
-  n8n_data:
+  # ── PostgreSQL 16 ─────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: roomly_postgres
+    restart: unless-stopped
+    networks:
+      - roomly_network
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-roomly}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-roomly_password}
+      - POSTGRES_DB=${POSTGRES_DB:-roomly}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-roomly}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 7 ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: roomly_redis
+    restart: unless-stopped
+    networks:
+      - roomly_network
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Next.js backend (dashboard + API) ─────────────────────
+  # Uncomment once you're ready to deploy via Docker.
+  # For local development: cd backend && npm run dev
+  #
+  # nextjs:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: roomly_nextjs
+  #   restart: unless-stopped
+  #   networks:
+  #     - roomly_network
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER:-roomly}:${POSTGRES_PASSWORD:-roomly_password}@postgres:5432/${POSTGRES_DB:-roomly}
+  #     - REDIS_URL=redis://redis:6379
+  #     - AUTH_SECRET=${AUTH_SECRET}
+  #     - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+  #     - ADMIN_EMAIL=${ADMIN_EMAIL}
+  #     - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+  #     - N8N_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
