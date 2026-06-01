@@ -6,6 +6,7 @@ primary_region = 'gru'
 
 [env]
   N8N_PORT = "5678"
+  N8N_HOST = "0.0.0.0"
   N8N_PROTOCOL = "https"
   N8N_TRUST_PROXY = "true"
   N8N_SECURE_COOKIE = "false"
