@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import NavLink from "@/components/dashboard/NavLink";
 import LiveUpdates from "@/components/dashboard/LiveUpdates";
 import { signOut } from "@/auth";
 
@@ -19,16 +19,16 @@ export default async function DashboardLayout({
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <span className="text-xl font-bold text-blue-400">Roomly</span>
-            <nav className="flex gap-4 text-sm text-zinc-400">
-              <Link href="/dashboard" className="hover:text-white transition-colors">
+            <nav className="flex gap-4 text-sm">
+              <NavLink href="/dashboard" exact>
                 Reservas
-              </Link>
-              <Link href="/dashboard/rooms" className="hover:text-white transition-colors">
+              </NavLink>
+              <NavLink href="/dashboard/rooms">
                 Habitaciones
-              </Link>
-              <Link href="/dashboard/configuracion" className="hover:text-white transition-colors">
+              </NavLink>
+              <NavLink href="/dashboard/configuracion">
                 Configuración
-              </Link>
+              </NavLink>
             </nav>
           </div>
           <form
