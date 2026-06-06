@@ -86,11 +86,17 @@ export type ChatMessage = {
   createdAt: Date;
 };
 
+const RML_CODE_RE = /RML-\d{4}/;
+
 /**
- * Returns the chat slice around a reservation: messages of that phone between the
- * previous reservation of the same guest and this one (+ a buffer to include the
- * confirmation turn, which is logged just after creation). Heuristic — the full
- * thread is always stored intact.
+ * Returns the chat for a reservation, delimited by the RML confirmation messages.
+ *
+ * Cada reserva se confirma con su código "RML-XXXX" en un mensaje del bot. Ese
+ * mensaje marca el FIN de una conversación de reserva. Por eso el chat de la
+ * reserva = los mensajes desde DESPUÉS de la confirmación anterior y HASTA su
+ * propia confirmación (inclusive). Así no se filtra la confirmación de la reserva
+ * previa en la siguiente. Si no se encuentra el mensaje de confirmación (p. ej.
+ * reservas creadas desde el dashboard, sin chat), cae a una ventana temporal.
  */
 export async function getReservationChat(
   reservationId: string
@@ -98,6 +104,7 @@ export async function getReservationChat(
   const reservation = await prisma.reservation.findUnique({
     where: { id: reservationId },
     select: {
+      code: true,
       guestId: true,
       createdAt: true,
       guest: { select: { phone: true } },
@@ -105,32 +112,49 @@ export async function getReservationChat(
   });
   if (!reservation) return [];
 
-  const [prev, next] = await Promise.all([
-    prisma.reservation.findFirst({
-      where: { guestId: reservation.guestId, createdAt: { lt: reservation.createdAt } },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    }),
-    prisma.reservation.findFirst({
-      where: { guestId: reservation.guestId, createdAt: { gt: reservation.createdAt } },
-      orderBy: { createdAt: "asc" },
-      select: { createdAt: true },
-    }),
-  ]);
-
-  const BUFFER_MS = 5 * 60 * 1000;
-  const lower = prev?.createdAt ?? new Date(0);
-  let upper = new Date(reservation.createdAt.getTime() + BUFFER_MS);
-  if (next && next.createdAt < upper) upper = next.createdAt;
-
-  const messages = await prisma.message.findMany({
-    where: {
-      phone: reservation.guest.phone,
-      createdAt: { gt: lower, lte: upper },
-    },
+  // Hilo completo del teléfono (no es grande por número).
+  const all = await prisma.message.findMany({
+    where: { phone: reservation.guest.phone },
     orderBy: { createdAt: "asc" },
     select: { id: true, direction: true, content: true, createdAt: true },
   });
+  if (all.length === 0) return [];
 
-  return messages;
+  // Fin: el mensaje del bot que confirma ESTA reserva (contiene su RML).
+  const endIdx = all.findIndex(
+    (m) => m.direction === "OUTBOUND" && m.content.includes(reservation.code)
+  );
+
+  if (endIdx === -1) {
+    // Fallback temporal: reserva sin mensaje de confirmación identificable.
+    return getReservationChatByTime(reservation.guestId, reservation.createdAt, all);
+  }
+
+  // Inicio: la confirmación anterior (cualquier RML) antes de endIdx; se excluye.
+  let startIdx = -1;
+  for (let i = endIdx - 1; i >= 0; i--) {
+    if (all[i].direction === "OUTBOUND" && RML_CODE_RE.test(all[i].content)) {
+      startIdx = i;
+      break;
+    }
+  }
+
+  return all.slice(startIdx + 1, endIdx + 1);
+}
+
+/** Fallback: ventana temporal entre la reserva anterior del mismo guest y esta. */
+async function getReservationChatByTime(
+  guestId: string,
+  createdAt: Date,
+  all: ChatMessage[]
+): Promise<ChatMessage[]> {
+  const prev = await prisma.reservation.findFirst({
+    where: { guestId, createdAt: { lt: createdAt } },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  const BUFFER_MS = 5 * 60 * 1000;
+  const lower = prev?.createdAt ?? new Date(0);
+  const upper = new Date(createdAt.getTime() + BUFFER_MS);
+  return all.filter((m) => m.createdAt > lower && m.createdAt <= upper);
 }
