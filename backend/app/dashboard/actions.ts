@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import {
+  getReservationChat as fetchReservationChat,
+  type ChatMessage,
+} from "@/services/conversation.service";
 
 // ─── Guest ────────────────────────────────────────────────────────────────────
 
@@ -59,4 +63,13 @@ export async function updateReservationGuest(
   });
 
   revalidatePath("/dashboard");
+}
+
+// ─── Conversation ──────────────────────────────────────────────────────────────
+
+/** Returns the chat transcript slice for a reservation (see conversation.service). */
+export async function getReservationChat(
+  reservationId: string
+): Promise<ChatMessage[]> {
+  return fetchReservationChat(reservationId);
 }

@@ -209,3 +209,23 @@ export const LoginSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof LoginSchema>;
+
+// ─── Conversation / chat log ───────────────────────────────────────────────────
+
+export const LogMessageSchema = z
+  .object({
+    phone: z.string().min(6).max(20),
+    userMessage: z.string().max(4000).optional(),
+    botMessage: z.string().max(4000).optional(),
+    channel: z
+      .enum(["WHATSAPP", "WEB", "PHONE", "OTA", "DIRECT"])
+      .default("WHATSAPP"),
+    // Unix seconds (string from WhatsApp payload) or ISO; optional.
+    waTimestamp: z.union([z.string(), z.number()]).optional(),
+    hotelId: z.string().min(1).optional(),
+  })
+  .refine((d) => Boolean(d.userMessage?.trim() || d.botMessage?.trim()), {
+    message: "At least one of userMessage or botMessage is required",
+  });
+
+export type LogMessageInput = z.infer<typeof LogMessageSchema>;

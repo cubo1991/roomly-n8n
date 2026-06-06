@@ -45,6 +45,11 @@ enum Channel {
   DIRECT
 }
 
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
 // ─────────────────────────────────────────────
 // Core entities
 // ─────────────────────────────────────────────
@@ -131,6 +136,7 @@ model Guest {
 
   reservations         Reservation[]
   conversationSessions ConversationSession[]
+  messages             Message[]
 
   @@unique([hotelId, phone])
   @@index([hotelId])
@@ -218,4 +224,24 @@ model AuditLog {
   createdAt     DateTime    @default(now())
 
   @@index([reservationId])
+}
+
+// Transcripción de la conversación de WhatsApp. Se guarda el hilo completo por
+// teléfono (cada mensaje una fila) para poder reconstruir el chat y usarlo luego
+// en mejoras del sistema. La vista "por reserva" se calcula como un recorte
+// temporal alrededor de Reservation.createdAt (ver conversation.service.ts).
+model Message {
+  id          String           @id @default(cuid())
+  hotelId     String?
+  phone       String
+  guestId     String?
+  guest       Guest?           @relation(fields: [guestId], references: [id])
+  direction   MessageDirection
+  content     String
+  channel     Channel          @default(WHATSAPP)
+  waTimestamp DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([phone])
+  @@index([phone, createdAt])
 }
