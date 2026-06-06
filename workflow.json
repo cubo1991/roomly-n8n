@@ -112,7 +112,7 @@
       "parameters": {
         "operation": "send",
         "phoneNumberId": "={{ $('Extraer datos del mensaje').item.json.phoneNumberId }}",
-        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.from }}",
+        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.from.replace(/^549/, '54') }}",
         "textBody": "={{ $json.output }}",
         "additionalFields": {}
       },
@@ -131,7 +131,7 @@
       "parameters": {
         "operation": "send",
         "phoneNumberId": "={{ $('Extraer datos del mensaje').item.json.phoneNumberId }}",
-        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.from }}",
+        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.from.replace(/^549/, '54') }}",
         "textBody": "Disculpá, tuve un problema técnico y no pude procesar tu mensaje. Por favor intentá de nuevo en unos segundos. 🙏",
         "additionalFields": {}
       },
