@@ -81,6 +81,7 @@ export async function createReservation(input: CreateReservationInput) {
         hotelId,
         roomId,
         guestId: guestRecord.id,
+        guestName: guest.name,
         ratePlanId,
         code,
         status: "CONFIRMED",
@@ -124,14 +125,14 @@ export async function createReservation(input: CreateReservationInput) {
   publishEvent({
     type: "NEW_RESERVATION",
     code: reservation.code,
-    guestName: reservation.guest.name,
+    guestName: reservation.guestName ?? reservation.guest.name,
     room: reservation.room.number,
   });
 
   // 7. Create Google Calendar event (fire-and-forget; failure does NOT abort the reservation)
   const calendarEventId = await createCalendarEvent({
     code:       reservation.code,
-    guestName:  reservation.guest.name,
+    guestName:  reservation.guestName ?? reservation.guest.name,
     roomNumber: reservation.room.number,
     checkIn:    reservation.checkIn,
     checkOut:   reservation.checkOut,
@@ -208,7 +209,7 @@ export async function updateReservation(
   if (current.calendarEventId) {
     await updateCalendarEvent(current.calendarEventId, {
       code:       current.code,
-      guestName:  updated.guest.name,
+      guestName:  updated.guestName ?? updated.guest.name,
       roomNumber: updated.room.number,
       checkIn:    updated.checkIn,
       checkOut:   updated.checkOut,

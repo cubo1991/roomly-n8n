@@ -14,11 +14,13 @@ const UpdateGuestSchema = z.object({
 });
 
 /**
- * Update a guest's personal data from the dashboard.
- * Phone is intentionally excluded — it's the WhatsApp identifier and
- * changing it would break conversation continuity.
+ * Update a reservation's holder name (its own titular) plus the contact's
+ * email/DNI. The name is stored per-reservation (Reservation.guestName), so
+ * editing it here does NOT affect other reservations of the same phone.
+ * Email/DNI belong to the Guest (the WhatsApp contact, shared by phone).
  */
-export async function updateGuest(
+export async function updateReservationGuest(
+  reservationId: string,
   guestId: string,
   data: FormData
 ): Promise<void> {
@@ -26,7 +28,6 @@ export async function updateGuest(
     name: (data.get("name") as string)?.trim() || undefined,
     email: (data.get("email") as string)?.trim() || undefined,
     dni: (data.get("dni") as string)?.trim() || undefined,
-    notes: (data.get("notes") as string)?.trim() || undefined,
   };
 
   const parsed = UpdateGuestSchema.safeParse(raw);
@@ -38,12 +39,21 @@ export async function updateGuest(
     throw new Error("Datos inválidos");
   }
 
-  // Normalize empty email to undefined so it doesn't overwrite with ""
-  const { email, ...rest } = parsed.data;
+  const { name, email, dni } = parsed.data;
+
+  // Holder name lives on the reservation
+  if (name) {
+    await prisma.reservation.update({
+      where: { id: reservationId },
+      data: { guestName: name },
+    });
+  }
+
+  // Contact data (email/DNI) lives on the shared Guest
   await prisma.guest.update({
     where: { id: guestId },
     data: {
-      ...rest,
+      ...(dni ? { dni } : {}),
       ...(email && email !== "" ? { email } : {}),
     },
   });

@@ -144,6 +144,10 @@ model Reservation {
   room       Room              @relation(fields: [roomId], references: [id])
   guestId    String
   guest      Guest             @relation(fields: [guestId], references: [id])
+  // Titular de ESTA reserva. Se captura al crearla y es independiente del
+  // nombre del Guest (que es el contacto de WhatsApp, único por teléfono).
+  // Permite que un mismo número reserve a nombre de personas distintas.
+  guestName  String?
   ratePlanId String?
   ratePlan   RatePlan?         @relation(fields: [ratePlanId], references: [id])
 

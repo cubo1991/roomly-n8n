@@ -19,6 +19,7 @@ type Reservation = {
   checkIn: Date;
   checkOut: Date;
   numGuests: number;
+  guestName: string | null;
   room: { number: string };
   guest: {
     id: string;
@@ -92,8 +93,9 @@ export default function ReservationTable({
               <TableCell className="font-mono text-blue-400">{r.code}</TableCell>
               <TableCell className="align-top py-3">
                 <EditableGuestCell
+                  reservationId={r.id}
                   guestId={r.guest.id}
-                  name={r.guest.name}
+                  name={r.guestName ?? r.guest.name}
                   phone={r.guest.phone}
                   email={r.guest.email}
                   dni={r.guest.dni}
