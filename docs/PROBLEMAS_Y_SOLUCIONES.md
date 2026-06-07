@@ -235,6 +235,190 @@ update: { email: guest.email ?? undefined, dni: guest.dni ?? undefined },
 ### Archivo modificado
 `backend/services/reservation.service.ts`
 
+### 🔄 Actualización (2026-06-06) — esta solución se reemplazó
+
+El parche de no actualizar el `name` tenía un efecto colateral: como **todas** las
+reservas de un teléfono comparten el mismo `Guest`, **todas** mostraban el primer
+nombre registrado. Si el mismo número reservaba a nombre de personas distintas, no
+había forma de ver el titular real de cada reserva.
+
+**Solución definitiva:** guardar el titular **en la reserva**, no en el huésped.
+Se agregó `Reservation.guestName` (migración `add_reservation_guest_name`, con
+backfill desde `Guest.name`). `createReservation` lo persiste; el dashboard muestra
+`reservation.guestName`; la edición en la tabla actualiza el titular de **esa**
+reserva (email/DNI siguen en el `Guest`, que es el contacto de WhatsApp). El `Guest`
+queda como contacto único por teléfono; el titular es por reserva.
+
+---
+
+## [004] `crear_reserva` falla tras agregar `guestName` (cliente Prisma desactualizado)
+
+**Fecha:** 2026-06-06
+**Síntoma:** Después de traer los cambios de `guestName`, el bot respondía "hubo un
+error al crear la reserva" para **cualquier** habitación. El endpoint devolvía 500.
+
+### Causa
+La **base** ya tenía la columna `guestName` (migración aplicada), pero el **cliente
+Prisma generado** en el clon donde corre la app no la conocía todavía. `prisma.reservation.create({ data: { guestName } })`
+lanzaba *"Unknown argument `guestName`"*.
+
+### Solución
+Regenerar el cliente y reiniciar el dev server (Next cachea el cliente en memoria):
+```bash
+cd backend
+npx prisma generate     # o npm install (postinstall corre prisma generate)
+# reiniciar npm run dev
+```
+> **Lección:** tras tocar el `schema.prisma`, siempre `prisma generate` + reiniciar.
+> La migración (base) y el cliente generado (código) son dos pasos distintos.
+
+---
+
+## [005] Tipografía "Times New Roman" en el dashboard
+
+**Fecha:** 2026-06-06
+**Síntoma:** El dashboard se veía con una fuente serif tipo Times New Roman.
+
+### Causa
+`layout.tsx` cargaba la fuente **Geist** en la variable `--font-geist-sans`, pero
+el tema en `app/globals.css` aplicaba `html { @apply font-sans }` con
+`--font-sans: var(--font-sans)` — una **auto-referencia vacía**. Al quedar sin
+valor, el navegador caía al serif por defecto.
+
+### Solución
+Mapear `--font-sans` (y `--font-heading`) a la fuente ya cargada:
+```css
+--font-sans: var(--font-geist-sans);
+--font-heading: var(--font-geist-sans);
+```
+**Archivo:** `backend/app/globals.css`
+
+---
+
+## [006] El panel de habitaciones marca "ocupada" una reserva futura
+
+**Fecha:** 2026-06-06
+**Síntoma:** Una habitación con una reserva que empieza dentro de unos días aparecía
+"Ocupada" **hoy**, aunque no hubiera nadie hospedado.
+
+### Causa
+`app/dashboard/rooms/page.tsx` calculaba el estado sobre una ventana de **7 días**
+(`hoy → hoy+7`) pero lo etiquetaba como "Estado actual". Cualquier reserva dentro
+de esa ventana marcaba la habitación como ocupada.
+
+### Solución
+Ventana de **hoy → mañana**: "Ocupada" = hay alguien hospedado esta noche
+(`check-in ≤ hoy < check-out`). El estado manual (`MAINTENANCE`/`OUT_OF_ORDER`)
+se respeta como fallback.
+**Archivo:** `backend/app/dashboard/rooms/page.tsx`
+
+---
+
+## [007] El bot dejó de responder — token de WhatsApp expirado
+
+**Fecha:** 2026-06-06
+**Síntoma:** Mandar "hola" al bot no devolvía nada (ni siquiera el mensaje de error).
+
+### Diagnóstico
+Leyendo los datos de ejecución de n8n (SQLite, tabla `execution_data`), el flujo
+corría **entero** y fallaba en el último nodo:
+```
+lastNodeExecuted: "Enviar respuesta al usuario1"
+Error: "Authorization failed - please check your credentials"
+```
+O sea: recibía el mensaje, Gemini respondía, pero **no podía enviar** el WhatsApp.
+La línea de tiempo (éxitos hasta cierta hora, errores después) confirmó un **token
+expirado**.
+
+> **Cómo inspeccionar ejecuciones de n8n sin API key** (SQLite por defecto):
+> ```bash
+> docker exec n8nNgrok node -e "const P='/usr/local/lib/node_modules/n8n/node_modules/.pnpm/';\
+> const s=require(P+'sqlite3@5.1.7/node_modules/sqlite3');const f=require(P+'flatted@3.4.2/node_modules/flatted');\
+> const db=new s.Database('/home/node/.n8n/database.sqlite',s.OPEN_READONLY);\
+> db.all('SELECT id,status FROM execution_entity ORDER BY startedAt DESC LIMIT 5',(e,r)=>{console.log(r);db.close();});"
+> ```
+
+### Solución
+Renovar el token de acceso de WhatsApp en la credencial de n8n.
+> **⚠️ El token de "API Setup" es temporal y expira a las 24 h.** Para evitar que el
+> bot se caiga a diario, generar un **token permanente de System User** (Meta Business
+> Settings → System Users) con permisos `whatsapp_business_messaging` +
+> `whatsapp_business_management`. *(Actualmente se usa el temporal.)*
+
+---
+
+## [008] "Recipient phone number not in allowed list" — quirk del 9 (Argentina)
+
+**Fecha:** 2026-06-06
+**Síntoma:** Con el token ya válido, el envío seguía fallando:
+```
+Error: "Bad request - please check your parameters"
+Detalle: "Recipient phone number not in allowed list" (HTTP 400)
+```
+enviando a `5492616628554`.
+
+### Causa
+WhatsApp **entrega** los mensajes entrantes con el `9` de móvil (`549…`), pero la
+Cloud API espera el número **canónico sin el `9`** (`54…`) para **enviar**. Por eso
+en la lista de destinatarios de Meta el número aparecía **sin el 9** por defecto.
+Mandar al `549…` nunca matchea, sin importar cuántas variantes se agreguen.
+
+### Solución
+Normalizar el destinatario en los **dos** nodos de WhatsApp antes de enviar:
+```
+{{ $('Extraer datos del mensaje1').item.json.from.replace(/^549/, '54') }}
+```
+No se toca el número usado para huésped/memoria/log (sigue con `9`, consistente con
+los datos existentes). En el repo: `workflow.json` (nodos `Enviar respuesta` /
+`Enviar error`).
+> **Lección:** para AR, enviar al número **sin el 9**, aunque el `from` venga con él.
+
+---
+
+## [009] Dev server sin memoria al compilar `/dashboard` (OOM Turbopack)
+
+**Fecha:** 2026-06-06
+**Síntoma:** `npm run dev` crasheaba al compilar `/dashboard`:
+```
+Fatal JavaScript out of memory: MemoryChunk allocation failed during deserialization
+```
+Antes del crash, el warning: *"multiple lockfiles ... selected the directory of
+...\roomly-n8n as the root directory"*.
+
+### Causa
+Había **dos `package-lock.json`** (uno en la carpeta padre y otro en `backend/`).
+Turbopack infería la **raíz del workspace** en el padre y escaneaba/cacheaba un
+árbol enorme → OOM al deserializar la caché.
+
+### Solución
+Fijar la raíz a `backend` en `next.config.ts`:
+```ts
+turbopack: { root: __dirname }
+```
+y **borrar la caché vieja** (`.next/`), que se había generado con la raíz mal.
+**Archivo:** `backend/next.config.ts`
+
+---
+
+## [010] El "Ver chat" mostraba la confirmación de la reserva anterior
+
+**Fecha:** 2026-06-06
+**Síntoma:** Al abrir el chat de una reserva aparecía, al principio, el último mensaje
+de la reserva **anterior** (con su código RML y el nombre del titular).
+
+### Causa
+La primera versión de `getReservationChat` recortaba por **ventana temporal**. Como
+el mensaje de confirmación se loguea unos segundos **después** de crearse la reserva,
+caía en la ventana de la reserva siguiente.
+
+### Solución
+Delimitar por el **código RML**: cada reserva confirma con su `RML-XXXX`, que marca
+el fin de una conversación. El chat de una reserva va desde **después** de la
+confirmación anterior y **hasta** su propia confirmación (inclusive). Determinístico.
+Fallback a ventana temporal si no hay mensaje de confirmación (reservas sin chat /
+creadas desde el dashboard).
+**Archivo:** `backend/services/conversation.service.ts`
+
 ---
 
 *Más problemas se irán agregando a este archivo.*

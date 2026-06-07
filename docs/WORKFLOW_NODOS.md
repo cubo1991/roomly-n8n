@@ -5,6 +5,14 @@ Archivo fuente: `workflow.json`
 
 > **⚠️ Importante:** Este archivo debe actualizarse siempre que se agregue, modifique o elimine un nodo en `workflow.json`.
 
+> **ℹ️ Nombres de nodos con sufijo `1` en la instancia viva.** Al re-importar el
+> `workflow.json` sobre un workflow ya existente, n8n renombra los nodos agregando
+> un `1` (`Extraer datos del mensaje1`, `AI Agent – Roomly1`, etc.) para evitar
+> colisiones, y reescribe solo las expresiones que los referencian. Por eso, en el
+> n8n actual los `$('...')` apuntan a los nombres **con** `1`. Si editás una
+> expresión a mano en la UI, respetá ese nombre. En `workflow.json` (repo) los
+> nombres van **sin** el sufijo.
+
 ---
 
 ## Diagrama de flujo
@@ -184,8 +192,16 @@ Envía la respuesta del AI Agent al usuario por WhatsApp.
 | Parámetro | Valor |
 |-----------|-------|
 | `phoneNumberId` | `$('Extraer datos del mensaje').item.json.phoneNumberId` |
-| `recipientPhoneNumber` | `$('Extraer datos del mensaje').item.json.from` |
+| `recipientPhoneNumber` | `$('Extraer datos del mensaje').item.json.from.replace(/^549/, '54')` |
 | `textBody` | `$json.output` (respuesta del agente) |
+
+> **⚠️ Quirk de Argentina (`549` → `54`).** WhatsApp **entrega** los mensajes
+> entrantes con el `9` de móvil (`549…`), pero la Cloud API espera el número
+> **canónico sin el `9`** (`54…`) para **enviar**. Mandar al `549…` devuelve
+> `Bad request – Recipient phone number not in allowed list` (HTTP 400). Por eso
+> el destinatario se normaliza con `.replace(/^549/, '54')`. Solo afecta el envío;
+> el número que se usa para huésped/memoria/log sigue con el `9` (consistente con
+> los datos existentes). Ver `PROBLEMAS_Y_SOLUCIONES.md` [008].
 
 ---
 
@@ -205,18 +221,43 @@ Fallback que se ejecuta cuando el agente no pudo generar respuesta (rama FALSE d
 | Parámetro | Valor |
 |-----------|-------|
 | `phoneNumberId` | `$('Extraer datos del mensaje').item.json.phoneNumberId` |
-| `recipientPhoneNumber` | `$('Extraer datos del mensaje').item.json.from` (número real del usuario) |
+| `recipientPhoneNumber` | `$('Extraer datos del mensaje').item.json.from.replace(/^549/, '54')` (mismo quirk del `9`, ver nodo 8) |
 
 ---
 
 ### 10. Logging de interacción
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | `n8n-nodes-base.code` (JavaScript) |
+| **Tipo** | `n8n-nodes-base.httpRequest` |
 | **ID** | `cf6fe2da-d663-4d2d-8818-7ac6d1ecf6cb` |
+| **Método** | POST |
 
 **Función:**  
-Nodo placeholder para logging futuro. Actualmente solo hace `return []` (no hace nada). Aquí se podrían agregar: guardar conversaciones en DB, enviar métricas, alertas, etc.
+Guarda cada turno de la conversación (mensaje del usuario + respuesta del bot) en
+el backend, para reconstruir el chat y usarlo después en mejoras del sistema.
+Antes era un placeholder (`return []`); ahora hace un POST al endpoint de logging.
+
+**Endpoint:** `POST {{ $env.BACKEND_URL }}/api/v1/conversations/log?_s={{ $env.N8N_WEBHOOK_SECRET }}`
+
+**Body (JSON, vía expresión):**
+```js
+={{ JSON.stringify({
+  phone:       $('Extraer datos del mensaje').item.json.from,
+  userMessage: $('Extraer datos del mensaje').item.json.messageText,
+  botMessage:  $('AI Agent – Roomly').item.json.output,
+  waTimestamp: $('Extraer datos del mensaje').item.json.timestamp,
+  hotelId:     $env.HOTEL_ID,
+  channel:     'WHATSAPP'
+}) }}
+```
+
+**Notas:**
+- Se usa un nodo **HTTP Request** (no Code) para evitar el bloqueo de `$env` en los
+  Code nodes y mantener el patrón de los demás llamados al backend.
+- Va **después** de "Enviar respuesta al usuario", así que solo loguea el camino de
+  **éxito** (no el de error). El backend crea 1–2 filas `Message` (INBOUND/OUTBOUND).
+- El backend deriva el "chat por reserva" a partir de estos mensajes (ver
+  `BACKEND.md` → Captura de chat).
 
 ---
 
@@ -377,8 +418,22 @@ Tool para cancelar una reserva (cambia su estado a `CANCELLED`). Requiere primer
 
 | Credencial | Usado en | Cómo configurar |
 |------------|----------|-----------------|
-| `WhatsApp account` | Enviar respuesta al usuario, Enviar error al usuario | App de Meta, token de acceso permanente |
+| `WhatsApp account` | Enviar respuesta al usuario, Enviar error al usuario | App de Meta, token de acceso (ver ⚠️ abajo) |
 | `Google Gemini(PaLM) Api account` | Gemini Flash | API Key de Google AI Studio |
+
+> **⚠️ Token de WhatsApp – temporal vs permanente.** Actualmente se usa el **token
+> temporal de "API Setup"** de Meta, que **expira a las 24 h**. Cuando expira, el
+> bot deja de responder y las ejecuciones fallan con
+> `Authorization failed - please check your credentials` en el nodo de envío
+> (ver `PROBLEMAS_Y_SOLUCIONES.md` [007]). Para no tener que renovarlo a diario,
+> generar un **token permanente de System User** (Meta Business Settings → Users →
+> System Users → generar token con permisos `whatsapp_business_messaging` +
+> `whatsapp_business_management`) y reemplazarlo en la credencial.
+
+> **ℹ️ Lista de destinatarios permitidos (modo de prueba).** Si la app está en modo
+> desarrollo, Meta solo permite enviar a números **verificados** en la lista *"To"*
+> de API Setup. Para Argentina hay que tener en cuenta el quirk del `9` (el envío
+> normaliza a `54…`, ver nodo 8). Ver `PROBLEMAS_Y_SOLUCIONES.md` [008].
 
 ---
 
