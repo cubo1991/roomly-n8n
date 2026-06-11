@@ -5,6 +5,7 @@ type RoomCell = {
   number: string;
   floor: number | null;
   typeName: string;
+  pricePerNight?: number | null;
   status: string;
   reservation: {
     guest: { name: string; phone: string };
@@ -59,6 +60,11 @@ export default function RoomGrid({ rooms }: { rooms: RoomCell[] }) {
                 >
                   <div className="text-lg font-bold">{room.number}</div>
                   <div className="text-xs opacity-75">{room.typeName}</div>
+                  {room.pricePerNight != null && (
+                    <div className="text-xs opacity-60 mt-0.5">
+                      ${room.pricePerNight.toLocaleString("es-AR")}/noche
+                    </div>
+                  )}
                   <div className="text-xs font-medium mt-1">
                     {statusLabel[room.status] ?? room.status}
                   </div>

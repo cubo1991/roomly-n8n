@@ -93,7 +93,16 @@ export async function getRoomStatusGrid(
   const rooms = await prisma.room.findMany({
     where: { hotelId },
     include: {
-      type: { select: { name: true } },
+      type: {
+        select: {
+          name: true,
+          ratePlans: {
+            select: { pricePerNight: true },
+            orderBy: { validFrom: "desc" },
+            take: 1,
+          },
+        },
+      },
       reservations: {
         where: {
           status: { notIn: ["CANCELLED", "NO_SHOW"] },
@@ -114,6 +123,9 @@ export async function getRoomStatusGrid(
     number: room.number,
     floor: room.floor,
     typeName: room.type.name,
+    pricePerNight: room.type.ratePlans[0]
+      ? Number(room.type.ratePlans[0].pricePerNight)
+      : null,
     status: room.reservations.length > 0 ? "OCCUPIED" : room.status,
     reservation: room.reservations[0] ?? null,
   }));

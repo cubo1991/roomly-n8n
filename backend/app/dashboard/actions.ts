@@ -65,6 +65,38 @@ export async function updateReservationGuest(
   revalidatePath("/dashboard");
 }
 
+// ─── Reservation checkout ─────────────────────────────────────────────────────
+
+/**
+ * Closes a reservation (CONFIRMED | CHECKED_IN → CHECKED_OUT).
+ * Called from the dashboard "Cerrar reserva" button.
+ */
+export async function checkoutReservation(reservationId: string): Promise<void> {
+  const current = await prisma.reservation.findUniqueOrThrow({
+    where: { id: reservationId },
+  });
+
+  if (!["CONFIRMED", "CHECKED_IN"].includes(current.status)) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.reservation.update({
+      where: { id: reservationId },
+      data: { status: "CHECKED_OUT" },
+    });
+    await tx.auditLog.create({
+      data: {
+        reservationId,
+        action: "CHECKED_OUT",
+        before: current as object,
+        after: { ...current, status: "CHECKED_OUT" } as object,
+        performedBy: "admin",
+      },
+    });
+  });
+
+  revalidatePath("/dashboard");
+}
+
 // ─── Conversation ──────────────────────────────────────────────────────────────
 
 /** Returns the chat transcript slice for a reservation (see conversation.service). */
