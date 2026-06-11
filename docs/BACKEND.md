@@ -45,7 +45,7 @@ backend/
 │   ├── dashboard/
 │   │   ├── layout.tsx                    # Navbar + auth guard + <LiveUpdates/>
 │   │   ├── page.tsx                      # Lista de reservas + stats
-│   │   ├── actions.ts                    # Server actions (editar titular, getReservationChat)
+│   │   ├── actions.ts                    # Server actions (editar titular, checkoutReservation, getReservationChat)
 │   │   ├── rooms/page.tsx               # Grilla de habitaciones (ocupación de hoy)
 │   │   └── configuracion/               # Autogestión del hotel (tipos, tarifas, habitaciones)
 │   └── login/page.tsx                   # Formulario de login
@@ -173,7 +173,7 @@ Todas las rutas bajo `/api/v1/` requieren autenticación (lo valida `middleware.
 | Método | Ruta | Descripción |
 |---|---|---|
 | `GET` | `/api/v1/rooms?hotelId=` | Todas las habitaciones |
-| `GET` | `/api/v1/rooms?hotelId=&checkIn=&checkOut=` | Solo habitaciones disponibles |
+| `GET` | `/api/v1/rooms?hotelId=&checkIn=&checkOut=` | Solo habitaciones disponibles (incluye `pricePerNight` y `ratePlanName`) |
 | `POST` | `/api/v1/rooms` | Crear habitación |
 
 ### Huéspedes
@@ -262,8 +262,14 @@ El **navbar** resalta la sección activa (`NavLink.tsx`, usa `usePathname`).
 ### Página de reservas (`/dashboard`)
 - KPIs: check-ins de hoy, huéspedes activos, reservas confirmadas
 - **Tabla colapsable.** Columnas visibles: Código, Huésped, Habitación, Check-in,
-  Check-out, Estado. Al hacer clic en una fila se **despliega** el detalle:
-  Noches, Personas, Canal, **"Creada el"** (`Reservation.createdAt`) y un botón **"Ver chat"**.
+  Check-out, Estado. Ordenadas por **fecha de creación descendente** (más nuevas primero).
+- **Badge "Checkout vencido"** (naranja) en reservas cuya fecha de checkout ya pasó
+  y siguen con estado `CONFIRMED` o `CHECKED_IN`.
+- Al hacer clic en una fila se **despliega** el detalle: Noches, Personas, Canal,
+  Tarifa + precio/noche, Total estimado (precio × noches), Creada el,
+  botón **"Cerrar reserva"** y botón **"Ver chat"**.
+- **"Cerrar reserva"** cambia el estado a `CHECKED_OUT` y registra en el `AuditLog`.
+  Solo aparece para reservas `CONFIRMED` o `CHECKED_IN`.
 - El nombre del huésped es editable inline (`EditableGuestCell`): el **nombre** actualiza
   el titular de **esa** reserva (`reservation.guestName`); email/DNI van al `Guest`.
 - **"Ver chat"** abre un panel lateral (`ChatDrawer`) con la conversación de esa reserva.
@@ -271,6 +277,7 @@ El **navbar** resalta la sección activa (`NavLink.tsx`, usa `usePathname`).
 ### Página de habitaciones (`/dashboard/rooms`)
 - Grilla visual por piso
 - Colores: verde (libre), rojo (ocupada), amarillo (mantenimiento)
+- Cada tarjeta muestra tipo de habitación y **precio por noche** (tomado del `RatePlan` vigente)
 - Muestra el nombre del huésped en habitaciones ocupadas
 - **Ocupación de HOY** (ventana `hoy → mañana`): una habitación está "Ocupada" solo
   si hay alguien hospedado esta noche. (Antes usaba una ventana de 7 días — ver
