@@ -11,6 +11,10 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
+  // Webhook de Mercado Pago: público (MP no envía credenciales)
+  const isMPWebhook = req.nextUrl.pathname === "/api/v1/payments/webhook";
+  if (isMPWebhook) return NextResponse.next();
+
   // API routes: require either session, X-N8N-Secret header, or _s query param
   if (isApiProtected && !isLoggedIn) {
     const headerSecret = req.headers.get("x-n8n-secret");

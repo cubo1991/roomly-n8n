@@ -37,6 +37,8 @@ export const CreateReservationSchema = z
       .default("WHATSAPP"),
     ratePlanId: z.string().min(1).optional(),
     notes: z.string().max(500).optional(),
+    // Tipo de pago: si se pasa, la reserva se crea en PENDING_PAYMENT y se genera un link de MP
+    paymentType: z.enum(["DEPOSIT", "FULL"]).optional(),
     // RML code: optional. If provided by n8n it's preserved; otherwise generated server-side.
     code: z
       .string()

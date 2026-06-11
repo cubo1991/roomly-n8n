@@ -39,7 +39,7 @@ async function uniqueCode(): Promise<string> {
 // ─── Create ───────────────────────────────────────────────────────────────────
 
 export async function createReservation(input: CreateReservationInput) {
-  const { hotelId, roomId, checkIn, checkOut, numGuests, channel, ratePlanId, notes } = input;
+  const { hotelId, roomId, checkIn, checkOut, numGuests, channel, ratePlanId, notes, paymentType } = input;
 
   // Normalize guest data: accept either nested object (dashboard) or flat fields (n8n)
   const guest = input.guest ?? {
@@ -84,7 +84,9 @@ export async function createReservation(input: CreateReservationInput) {
         guestName: guest.name,
         ratePlanId,
         code,
-        status: "CONFIRMED",
+        // Si viene con paymentType es un flujo WhatsApp con pago → queda PENDING_PAYMENT
+        // hasta que MP confirme. Si no, el admin crea directo como CONFIRMED.
+        status: paymentType ? "PENDING_PAYMENT" : "CONFIRMED",
         channel,
         checkIn: new Date(checkIn),
         checkOut: new Date(checkOut),
@@ -109,17 +111,20 @@ export async function createReservation(input: CreateReservationInput) {
     return res;
   });
 
-  // 5. Enqueue async jobs (fire-and-forget)
-  await Promise.allSettled([
-    reservationQueue.add("confirmation", {
-      type: "SEND_CONFIRMATION",
-      reservationId: reservation.id,
-    }),
-    reservationQueue.add("housekeeping", {
-      type: "SCHEDULE_HOUSEKEEPING",
-      reservationId: reservation.id,
-    }),
-  ]);
+  // 5. Enqueue async jobs — solo si la reserva ya está CONFIRMED.
+  // Si es PENDING_PAYMENT, los jobs se encolan cuando MP confirme el pago.
+  if (!paymentType) {
+    await Promise.allSettled([
+      reservationQueue.add("confirmation", {
+        type: "SEND_CONFIRMATION",
+        reservationId: reservation.id,
+      }),
+      reservationQueue.add("housekeeping", {
+        type: "SCHEDULE_HOUSEKEEPING",
+        reservationId: reservation.id,
+      }),
+    ]);
+  }
 
   // 6. Notify dashboard via SSE (fire-and-forget)
   publishEvent({

@@ -66,6 +66,32 @@ export default async function ConfiguracionPage() {
         ))}
       </div>
 
+      {/* ── Banner: Template de WhatsApp para notificación de pago ────────────── */}
+      <div className="rounded-xl border-2 border-yellow-500/60 bg-yellow-950/30 p-5 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-yellow-400 text-lg">⚠️</span>
+          <h2 className="font-semibold text-yellow-300 text-sm uppercase tracking-wide">
+            Pendiente: Template de WhatsApp para confirmación de pago
+          </h2>
+        </div>
+        <p className="text-yellow-200/80 text-sm leading-relaxed">
+          Cuando Mercado Pago confirma un pago, el sistema envía automáticamente un mensaje de WhatsApp
+          al huésped. Si el pago ocurre <strong>dentro de las 24 h</strong> de la última interacción,
+          el mensaje se envía sin template (ventana de conversación activa).
+        </p>
+        <p className="text-yellow-200/80 text-sm leading-relaxed">
+          Si pasan más de 24 h, Meta requiere un <strong>template aprobado</strong> (mensaje proactivo).
+          El proceso de aprobación se gestiona desde{" "}
+          <span className="font-mono bg-yellow-900/50 px-1 rounded text-yellow-300">
+            Meta Business Suite → WhatsApp → Plantillas de mensajes
+          </span>.
+        </p>
+        <p className="text-green-400/90 text-sm font-medium">
+          ✅ Para el MVP esto no es necesario — la mayoría de pagos ocurren dentro de las 24 h.
+          Recordá implementarlo antes de pasar a producción con alto volumen.
+        </p>
+      </div>
+
       {/* Hotel info form */}
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
         <div className="px-6 py-4 border-b border-zinc-800">

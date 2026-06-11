@@ -15,12 +15,25 @@ datasource db {
 // ─────────────────────────────────────────────
 
 enum ReservationStatus {
+  PENDING_PAYMENT  // reserva creada, esperando pago de seña/total
   PENDING
   CONFIRMED
   CHECKED_IN
   CHECKED_OUT
   CANCELLED
   NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum PaymentType {
+  DEPOSIT  // seña del 15%
+  FULL     // total completo
 }
 
 enum RoomStatus {
@@ -174,6 +187,7 @@ model Reservation {
 
   housekeepingTasks HousekeepingTask[]
   auditLogs         AuditLog[]
+  payment           Payment?
 
   // IMPORTANT: double-booking exclusion constraint is added via raw SQL
   // in the migration file. See prisma/migrations/*/migration.sql
@@ -224,6 +238,28 @@ model AuditLog {
   createdAt     DateTime    @default(now())
 
   @@index([reservationId])
+}
+
+// Registro de pagos de Mercado Pago asociados a reservas.
+// Una reserva puede tener a lo sumo un pago (seña o total).
+model Payment {
+  id             String        @id @default(cuid())
+  hotelId        String
+  reservationId  String        @unique
+  reservation    Reservation   @relation(fields: [reservationId], references: [id])
+  mpPreferenceId String?       // ID de la preferencia de MP (antes de pagar)
+  mpPaymentId    String?       // ID del pago en MP (después de pagar)
+  amount         Decimal       @db.Decimal(10, 2)
+  currency       String        @default("ARS")
+  status         PaymentStatus @default(PENDING)
+  paymentType    PaymentType
+  expiresAt      DateTime      // deadline de 24hs; pasado esto se auto-cancela
+  notifiedAt     DateTime?     // cuándo se envió el WhatsApp de confirmación
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([reservationId])
+  @@index([mpPaymentId])
 }
 
 // Transcripción de la conversación de WhatsApp. Se guarda el hilo completo por

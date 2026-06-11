@@ -1,6 +1,7 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { redis } from "./redis";
 import { prisma } from "./prisma";
+import { expirePayment } from "@/services/payment.service";
 
 // ─── Queue definitions ────────────────────────────────────────────────────────
 
@@ -19,7 +20,9 @@ export const reservationQueue = new Queue("reservations", {
 export type ReservationJobData =
   | { type: "SEND_CONFIRMATION"; reservationId: string }
   | { type: "SCHEDULE_CHECKIN_REMINDER"; reservationId: string }
-  | { type: "SCHEDULE_HOUSEKEEPING"; reservationId: string };
+  | { type: "SCHEDULE_HOUSEKEEPING"; reservationId: string }
+  | { type: "EXPIRE_PAYMENT"; reservationId: string }
+  | { type: "SEND_PAYMENT_CONFIRMED"; reservationId: string; mpPaymentId: string; paymentType: string; amount: number };
 
 // ─── Worker (runs in a separate process in production) ────────────────────────
 
@@ -73,6 +76,42 @@ export function startReservationWorker() {
           console.log(`[Queue] Housekeeping task created for ${res.code}`);
           break;
         }
+
+        case "EXPIRE_PAYMENT": {
+          await expirePayment(data.reservationId);
+          break;
+        }
+
+        case "SEND_PAYMENT_CONFIRMED": {
+          const res = await prisma.reservation.findUnique({
+            where: { id: data.reservationId },
+            include: {
+              guest: true,
+              room:  { select: { number: true } },
+              hotel: { select: { name: true } },
+            },
+          });
+          if (!res) return;
+
+          const typeLabel = data.paymentType === "DEPOSIT" ? "seña (15%)" : "pago total";
+          const msg =
+            `✅ ¡Pago recibido! Tu reserva *${res.code}* en ${res.hotel.name} está *confirmada*.\n` +
+            `Hab. ${res.room.number} · Check-in: ${res.checkIn.toISOString().slice(0, 10)}\n` +
+            `Se acreditó tu ${typeLabel} de $${data.amount.toLocaleString("es-AR")}.\n\n` +
+            `¡Te esperamos! 🏨`;
+
+          // Enviar WhatsApp via Cloud API
+          await sendWhatsAppMessage(res.guest.phone, msg);
+
+          // Marcar notificación
+          await prisma.payment.update({
+            where: { reservationId: data.reservationId },
+            data:  { notifiedAt: new Date() },
+          });
+
+          console.log(`[Queue] Notificación de pago enviada → ${res.guest.phone}`);
+          break;
+        }
       }
     },
     { connection: redis }
@@ -83,4 +122,41 @@ export function startReservationWorker() {
   });
 
   return worker;
+}
+
+// ─── Helper: enviar mensaje por WhatsApp Cloud API ────────────────────────────
+
+async function sendWhatsAppMessage(phone: string, text: string): Promise<void> {
+  const phoneNumberId   = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const accessToken     = process.env.WHATSAPP_ACCESS_TOKEN;
+
+  if (!phoneNumberId || !accessToken) {
+    console.warn("[WhatsApp] WHATSAPP_PHONE_NUMBER_ID o WHATSAPP_ACCESS_TOKEN no configurados. Mensaje no enviado.");
+    return;
+  }
+
+  // Argentina quirk: la Cloud API requiere 54XX... (sin el 9 de móvil)
+  const recipient = phone.replace(/^549/, "54");
+
+  const res = await fetch(
+    `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: recipient,
+        type: "text",
+        text: { body: text },
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`WhatsApp API error: ${err}`);
+  }
 }
