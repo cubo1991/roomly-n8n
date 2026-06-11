@@ -94,14 +94,16 @@ export function startReservationWorker() {
           if (!res) return;
 
           const typeLabel = data.paymentType === "DEPOSIT" ? "seña (15%)" : "pago total";
+          const checkInStr = res.checkIn.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+          const checkOutStr = res.checkOut.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
           const msg =
             `✅ ¡Pago recibido! Tu reserva *${res.code}* en ${res.hotel.name} está *confirmada*.\n` +
-            `Hab. ${res.room.number} · Check-in: ${res.checkIn.toISOString().slice(0, 10)}\n` +
-            `Se acreditó tu ${typeLabel} de $${data.amount.toLocaleString("es-AR")}.\n\n` +
+            `🛏️ Hab. ${res.room.number} · Check-in: ${checkInStr} · Check-out: ${checkOutStr}\n` +
+            `💰 Se acreditó tu ${typeLabel} de $${data.amount.toLocaleString("es-AR")}.\n\n` +
             `¡Te esperamos! 🏨`;
 
-          // Enviar WhatsApp via Cloud API
-          await sendWhatsAppMessage(res.guest.phone, msg);
+          // Enviar via n8n (usa el canal WhatsApp ya configurado)
+          await notifyViaWhatsApp(res.guest.phone, msg);
 
           // Marcar notificación
           await prisma.payment.update({
@@ -124,39 +126,32 @@ export function startReservationWorker() {
   return worker;
 }
 
-// ─── Helper: enviar mensaje por WhatsApp Cloud API ────────────────────────────
+// ─── Helper: enviar mensaje via n8n (que usa el canal WhatsApp configurado) ───
 
-async function sendWhatsAppMessage(phone: string, text: string): Promise<void> {
-  const phoneNumberId   = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const accessToken     = process.env.WHATSAPP_ACCESS_TOKEN;
+async function notifyViaWhatsApp(phone: string, message: string): Promise<void> {
+  const n8nBaseUrl          = process.env.N8N_BASE_URL ?? "http://localhost:5678";
+  const phoneNumberId       = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-  if (!phoneNumberId || !accessToken) {
-    console.warn("[WhatsApp] WHATSAPP_PHONE_NUMBER_ID o WHATSAPP_ACCESS_TOKEN no configurados. Mensaje no enviado.");
+  if (!phoneNumberId) {
+    console.warn("[WhatsApp] WHATSAPP_PHONE_NUMBER_ID no configurado. Mensaje no enviado.");
     return;
   }
 
   // Argentina quirk: la Cloud API requiere 54XX... (sin el 9 de móvil)
   const recipient = phone.replace(/^549/, "54");
 
-  const res = await fetch(
-    `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: recipient,
-        type: "text",
-        text: { body: text },
-      }),
-    }
-  );
+  const res = await fetch(`${n8nBaseUrl}/webhook/payment-confirmed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      phone:         recipient,
+      phoneNumberId,
+      message,
+    }),
+  });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`WhatsApp API error: ${err}`);
+    throw new Error(`n8n webhook error: ${err}`);
   }
 }

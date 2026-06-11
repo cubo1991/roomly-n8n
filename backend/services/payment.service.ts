@@ -21,20 +21,33 @@ export async function createPaymentPreference(
   const reservation = await prisma.reservation.findUniqueOrThrow({
     where: { id: reservationId },
     include: {
-      room:     { select: { number: true } },
+      room:     { select: { number: true, typeId: true } },
       ratePlan: { select: { pricePerNight: true } },
       hotel:    { select: { name: true, email: true, phone: true } },
     },
   });
 
-  if (!reservation.ratePlan) {
-    throw new Error("La reserva no tiene tarifa asignada — no se puede calcular el monto.");
+  // Precio: usar el ratePlan de la reserva si existe,
+  // sino buscar el plan vigente del tipo de habitación.
+  let pricePerNight: number;
+  if (reservation.ratePlan) {
+    pricePerNight = Number(reservation.ratePlan.pricePerNight);
+  } else {
+    const plan = await prisma.ratePlan.findFirst({
+      where: { typeId: reservation.room.typeId },
+      orderBy: { validFrom: "desc" },
+      select: { pricePerNight: true },
+    });
+    if (!plan) {
+      throw new Error("No hay tarifa configurada para esta habitación.");
+    }
+    pricePerNight = Number(plan.pricePerNight);
   }
 
   const nights = Math.round(
     (reservation.checkOut.getTime() - reservation.checkIn.getTime()) / 86400000
   );
-  const totalPrice  = Number(reservation.ratePlan.pricePerNight) * nights;
+  const totalPrice  = pricePerNight * nights;
   const payAmount   = paymentType === "DEPOSIT" ? Math.round(totalPrice * 0.15) : totalPrice;
   const expiresAt   = new Date(Date.now() + 24 * 60 * 60 * 1000); // +24 h
 
