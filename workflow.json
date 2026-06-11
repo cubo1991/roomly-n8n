@@ -112,7 +112,7 @@
       "parameters": {
         "operation": "send",
         "phoneNumberId": "={{ $('Extraer datos del mensaje').item.json.phoneNumberId }}",
-        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.from }}",
+        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.from.replace(/^549/, '54') }}",
         "textBody": "={{ $json.output }}",
         "additionalFields": {}
       },
@@ -131,7 +131,7 @@
       "parameters": {
         "operation": "send",
         "phoneNumberId": "={{ $('Extraer datos del mensaje').item.json.phoneNumberId }}",
-        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.from }}",
+        "recipientPhoneNumber": "={{ $('Extraer datos del mensaje').item.json.from.replace(/^549/, '54') }}",
         "textBody": "Disculpá, tuve un problema técnico y no pude procesar tu mensaje. Por favor intentá de nuevo en unos segundos. 🙏",
         "additionalFields": {}
       },
@@ -147,10 +147,15 @@
 
     {
       "parameters": {
-        "jsCode": "return [];\n"
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL }}/api/v1/conversations/log?_s={{ $env.N8N_WEBHOOK_SECRET }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ phone: $('Extraer datos del mensaje').item.json.from, userMessage: $('Extraer datos del mensaje').item.json.messageText, botMessage: $('AI Agent – Roomly').item.json.output, waTimestamp: $('Extraer datos del mensaje').item.json.timestamp, hotelId: $env.HOTEL_ID, channel: 'WHATSAPP' }) }}",
+        "options": {}
       },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [8160, 1168],
       "id": "cf6fe2da-d663-4d2d-8818-7ac6d1ecf6cb",
       "name": "Logging de interacción"

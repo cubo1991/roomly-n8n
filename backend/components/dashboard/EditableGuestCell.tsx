@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
-import { updateGuest } from "@/app/dashboard/actions";
+import { updateReservationGuest } from "@/app/dashboard/actions";
 
 type Props = {
+  reservationId: string;
   guestId: string;
   name: string;
   phone: string;
@@ -11,7 +12,7 @@ type Props = {
   dni?: string | null;
 };
 
-export default function EditableGuestCell({ guestId, name, phone, email, dni }: Props) {
+export default function EditableGuestCell({ reservationId, guestId, name, phone, email, dni }: Props) {
   const [editing, setEditing] = useState(false);
   const [currentName, setCurrentName] = useState(name);
   const [isPending, startTransition] = useTransition();
@@ -20,7 +21,7 @@ export default function EditableGuestCell({ guestId, name, phone, email, dni }: 
   function handleSave(formData: FormData) {
     const newName = (formData.get("name") as string)?.trim();
     startTransition(async () => {
-      await updateGuest(guestId, formData);
+      await updateReservationGuest(reservationId, guestId, formData);
       if (newName) setCurrentName(newName);
       setEditing(false);
     });

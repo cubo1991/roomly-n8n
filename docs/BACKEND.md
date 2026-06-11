@@ -6,14 +6,19 @@ Panel de administración y API REST para el sistema de reservas Roomly.
 
 | Capa | Tecnología |
 |---|---|
-| Framework | Next.js 14 (App Router) + TypeScript |
-| ORM | Prisma 5 |
+| Framework | Next.js 16 (App Router, Turbopack) + TypeScript |
+| ORM | Prisma 7 |
 | Base de datos | PostgreSQL 16 |
 | Cache / Queues | Redis 7 + BullMQ |
 | Auth | NextAuth v5 (Credentials) |
-| Validación | Zod |
+| Validación | Zod 4 |
 | UI | shadcn/ui + Tailwind CSS |
 | Runtime | Node.js 20 |
+
+> **Config Turbopack.** `next.config.ts` fija `turbopack.root = __dirname` para
+> anclar la raíz del workspace a `backend/`. Sin eso, al haber otro `package-lock.json`
+> en la carpeta padre, Turbopack inferiría mal la raíz y se quedaba sin memoria al
+> compilar (ver `PROBLEMAS_Y_SOLUCIONES.md` [009]).
 
 ---
 
@@ -24,35 +29,53 @@ backend/
 ├── app/
 │   ├── api/
 │   │   ├── auth/[...nextauth]/route.ts   # Handlers NextAuth
+│   │   ├── dashboard/events/route.ts     # SSE (tiempo real) — ver SSE_TIEMPO_REAL.md
 │   │   └── v1/
 │   │       ├── reservations/
 │   │       │   ├── route.ts              # GET list / POST create
-│   │       │   └── [id]/route.ts         # GET / PATCH / DELETE by id or RML code
+│   │       │   ├── [id]/route.ts         # GET / PATCH / DELETE by id o código RML
+│   │       │   ├── crear/route.ts        # GET (variante para n8n)
+│   │       │   ├── modificar/route.ts    # GET (variante para n8n)
+│   │       │   └── cancelar/route.ts     # GET (variante para n8n)
+│   │       ├── conversations/log/route.ts # POST — guarda el chat (lo llama n8n)
 │   │       ├── rooms/route.ts            # GET list / POST create
+│   │       ├── room-types/, rate-plans/  # CRUD config
 │   │       ├── guests/route.ts           # GET list / POST upsert
 │   │       └── hotels/route.ts           # GET list / POST create
 │   ├── dashboard/
-│   │   ├── layout.tsx                    # Navbar + auth guard (server)
+│   │   ├── layout.tsx                    # Navbar + auth guard + <LiveUpdates/>
 │   │   ├── page.tsx                      # Lista de reservas + stats
-│   │   └── rooms/page.tsx               # Grilla de habitaciones
+│   │   ├── actions.ts                    # Server actions (editar titular, getReservationChat)
+│   │   ├── rooms/page.tsx               # Grilla de habitaciones (ocupación de hoy)
+│   │   └── configuracion/               # Autogestión del hotel (tipos, tarifas, habitaciones)
 │   └── login/page.tsx                   # Formulario de login
 ├── components/dashboard/
-│   ├── ReservationTable.tsx              # Tabla de reservas (client)
-│   └── RoomGrid.tsx                     # Grilla por piso (client)
+│   ├── ReservationTable.tsx              # Tabla de reservas colapsable (client)
+│   ├── ChatDrawer.tsx                    # Panel lateral con la conversación (client)
+│   ├── EditableGuestCell.tsx             # Editar titular/contacto desde la tabla
+│   ├── NavLink.tsx                       # Link de navbar con estado activo
+│   ├── LiveUpdates.tsx                   # EventSource (SSE) + router.refresh()
+│   ├── RoomGrid.tsx                     # Grilla por piso (client)
+│   └── DeleteButton.tsx / SubmitButton.tsx
 ├── lib/
 │   ├── prisma.ts                         # Prisma singleton
 │   ├── redis.ts                          # Redis/ioredis singleton
+│   ├── redis-subscriber.ts              # Conexiones Redis para SSE pub/sub
+│   ├── events.ts                         # Tipo DashboardEvent + canal Redis
 │   ├── queue.ts                          # BullMQ queues + worker
+│   ├── calendar.ts                       # Google Calendar
 │   └── validations.ts                   # Zod schemas
 ├── services/
-│   ├── availability.service.ts          # Lógica de disponibilidad
-│   └── reservation.service.ts           # CRUD reservas + audit log
+│   ├── availability.service.ts          # Disponibilidad + grilla de habitaciones
+│   ├── reservation.service.ts           # CRUD reservas + audit log + eventos
+│   └── conversation.service.ts          # Log de chat + getReservationChat
 ├── prisma/
 │   ├── schema.prisma                     # Modelo de datos
 │   ├── seed.ts                           # Datos iniciales
 │   └── migrations/                       # Historial SQL
 ├── auth.ts                               # Configuración NextAuth
-├── middleware.ts                         # Protección de rutas
+├── middleware.ts                         # Protección de rutas (sesión o `_s`)
+├── next.config.ts                        # output standalone + turbopack.root
 ├── Dockerfile                            # Multi-stage build
 ├── entrypoint.sh                         # migrate deploy + start
 └── .env.example                          # Variables de entorno
@@ -77,11 +100,17 @@ Hotel ──< RoomType ──< Room
 | `RoomType` | Tipo de habitación (Standard, Suite, etc.) con amenities. |
 | `Room` | Habitación física (`number`, `floor`, `status`). |
 | `RatePlan` | Precio por noche para un tipo, en un rango de fechas. |
-| `Guest` | Huésped identificado por `(hotelId, phone)` único. |
-| `Reservation` | Reserva con código `RML-XXXX` único. Incluye `checkIn`/`checkOut` como `@db.Date`. |
+| `Guest` | Huésped identificado por `(hotelId, phone)` único. Es el **contacto** de WhatsApp (uno por teléfono). |
+| `Reservation` | Reserva con código `RML-XXXX` único. `checkIn`/`checkOut` como `@db.Date`. Incluye **`guestName`** = titular **de esa reserva** (independiente del `Guest`). |
 | `HousekeepingTask` | Tarea de limpieza (se crea automáticamente al hacer una reserva). |
 | `ConversationSession` | Estado parcial de una conversación WhatsApp (contexto JSON). |
+| `Message` | **Transcripción del chat** de WhatsApp (una fila por mensaje). Campos: `phone`, `guestId?`, `direction` (`INBOUND`/`OUTBOUND`), `content`, `waTimestamp?`, `createdAt`. |
 | `AuditLog` | Historial de cambios por reserva (before/after JSON). |
+
+> **Titular por reserva (`Reservation.guestName`).** El `Guest` es único por teléfono,
+> así que su `name` no sirve para distinguir titulares cuando el mismo número reserva
+> para personas distintas. Por eso cada reserva guarda su propio `guestName` (capturado
+> al crearla). El dashboard muestra `reservation.guestName`. Ver `PROBLEMAS_Y_SOLUCIONES.md` [003].
 
 ### Prevención de double-booking
 
@@ -105,9 +134,10 @@ La capa de servicio también hace una verificación previa en memoria (`availabi
 
 ## API REST
 
-Todas las rutas bajo `/api/v1/` requieren autenticación:
+Todas las rutas bajo `/api/v1/` requieren autenticación (lo valida `middleware.ts`):
 - **Sesión activa** (cookie de NextAuth) — para el dashboard
-- **Header `X-N8N-Secret: <valor>`** — para llamadas desde n8n
+- **Header `X-N8N-Secret: <valor>`** *o* **query param `?_s=<valor>`** — para llamadas
+  desde n8n (los tools y el nodo de logging usan `?_s=` porque van en la URL)
 
 ### Reservas
 
@@ -160,6 +190,26 @@ Todas las rutas bajo `/api/v1/` requieren autenticación:
 | `GET` | `/api/v1/hotels` | Listar hoteles |
 | `POST` | `/api/v1/hotels` | Crear hotel |
 
+### Variantes GET para n8n
+
+Los tools del agente de n8n envían todo por **GET** con query params (es como
+`toolHttpRequest` arma las llamadas). Por eso, además del CRUD REST, existen:
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/api/v1/reservations/crear?...&guestName=&guestPhone=&...` | Crear reserva (n8n) |
+| `GET` | `/api/v1/reservations/modificar?...&id=&checkIn=&...` | Modificar reserva (n8n) |
+| `GET` | `/api/v1/reservations/cancelar?...&id=` | Cancelar reserva (n8n) |
+
+### Conversaciones (chat)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/api/v1/conversations/log` | Guarda un turno del chat (lo llama el nodo "Logging" de n8n) |
+
+**Body:** `{ phone, userMessage?, botMessage?, channel?, waTimestamp?, hotelId? }`
+(al menos uno de los dos mensajes). Crea 1–2 filas `Message` (INBOUND/OUTBOUND).
+
 ---
 
 ## Autenticación
@@ -207,15 +257,53 @@ Los workers se definen en `lib/queue.ts`. En producción, corren en un proceso s
 
 Accesible en `http://localhost:3000/dashboard` (requiere login).
 
+El **navbar** resalta la sección activa (`NavLink.tsx`, usa `usePathname`).
+
 ### Página de reservas (`/dashboard`)
 - KPIs: check-ins de hoy, huéspedes activos, reservas confirmadas
-- Tabla completa con código RML, huésped, habitación, fechas, estado, canal
+- **Tabla colapsable.** Columnas visibles: Código, Huésped, Habitación, Check-in,
+  Check-out, Estado. Al hacer clic en una fila se **despliega** el detalle:
+  Noches, Personas, Canal, **"Creada el"** (`Reservation.createdAt`) y un botón **"Ver chat"**.
+- El nombre del huésped es editable inline (`EditableGuestCell`): el **nombre** actualiza
+  el titular de **esa** reserva (`reservation.guestName`); email/DNI van al `Guest`.
+- **"Ver chat"** abre un panel lateral (`ChatDrawer`) con la conversación de esa reserva.
 
 ### Página de habitaciones (`/dashboard/rooms`)
 - Grilla visual por piso
 - Colores: verde (libre), rojo (ocupada), amarillo (mantenimiento)
 - Muestra el nombre del huésped en habitaciones ocupadas
-- Filtro: próximos 7 días
+- **Ocupación de HOY** (ventana `hoy → mañana`): una habitación está "Ocupada" solo
+  si hay alguien hospedado esta noche. (Antes usaba una ventana de 7 días — ver
+  `PROBLEMAS_Y_SOLUCIONES.md` [006].)
+
+### Configuración (`/dashboard/configuracion`)
+Autogestión del hotel: tipos de habitación, tarifas y habitaciones (CRUD).
+
+---
+
+## Captura de chat (WhatsApp)
+
+Toda la conversación de WhatsApp se **almacena** para poder reconstruir el chat y
+usarlo después en mejoras del sistema.
+
+**Flujo:**
+1. n8n, tras responder al usuario, hace `POST /api/v1/conversations/log` con el
+   mensaje del usuario y la respuesta del bot (nodo "Logging de interacción").
+2. `conversation.service.ts → logInteraction()` guarda el **hilo completo por
+   teléfono**: una fila `Message` INBOUND y otra OUTBOUND.
+3. En el dashboard, "Ver chat" llama al server action `getReservationChat()` que
+   devuelve **el chat de esa reserva**.
+
+**Cómo se delimita el chat por reserva.** Como los mensajes llegan *antes* de que
+exista la reserva, no se puede asociar 1:1 en el momento. Se guarda todo el hilo y
+la vista por reserva se recorta usando el **código RML como marcador de fin de
+conversación**: cada reserva confirma con su `RML-XXXX`, así que su chat va desde
+**después** de la confirmación anterior y **hasta** su propia confirmación. Si no se
+encuentra el mensaje de confirmación (reserva sin chat / creada desde el dashboard),
+cae a una ventana temporal. Ver `PROBLEMAS_Y_SOLUCIONES.md` [010].
+
+> El chat **no** se actualiza en vivo (no usa SSE); el drawer lo consulta al abrirse.
+> Ver `SSE_TIEMPO_REAL.md`.
 
 ---
 

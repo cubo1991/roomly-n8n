@@ -143,6 +143,19 @@ type DashboardEvent =
 Actualmente los tres tipos disparan un `router.refresh()`. En el futuro se podría
 usar el tipo para mostrar un toast distinto ("Nueva reserva RML-0042 de Juan García").
 
+> **Cambio (2026-06-06):** el evento `NEW_RESERVATION` ahora envía el **titular por
+> reserva**. En `reservation.service.ts` el `guestName` del evento se toma como
+> `reservation.guestName ?? reservation.guest.name` (ver feature de titular por
+> reserva en `BACKEND.md`). La **estructura de SSE no cambió**: mismos tipos, mismos
+> archivos, mismo flujo.
+
+> **La captura de chat NO usa SSE.** Los mensajes de WhatsApp se guardan vía el
+> endpoint `POST /api/v1/conversations/log` (lo llama n8n) y el drawer "Ver chat"
+> los **consulta on-demand** al abrirse (server action `getReservationChat`). No hay
+> evento SSE por mensaje nuevo, así que el chat **no** se actualiza en vivo si lo
+> tenés abierto. Si se quisiera, habría que agregar un tipo `NEW_MESSAGE` al
+> `DashboardEvent` y publicarlo desde el endpoint de logging.
+
 ---
 
 ## Heartbeat
