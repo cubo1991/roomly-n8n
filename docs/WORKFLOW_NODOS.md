@@ -156,6 +156,9 @@ Cerebro del bot. Recibe el texto del usuario (`$json.messageText`) y, guiado por
 - Sabe la fecha actual (`$now.toISO()`) y el teléfono del huésped
 - Flujo obligatorio para reservas: primero `consultar_habitaciones`, luego `crear_reserva`
 - `guestPhone` siempre viene del sistema (no del usuario)
+- Al listar habitaciones disponibles, **siempre muestra el precio por noche** de cada una (ej: "Hab. 101 – Standard – $25.000/noche")
+- Al confirmar una reserva, **incluye el total estimado** (precio/noche × noches) en el mensaje de confirmación
+- Precios con formato argentino (`$25.000`, no `$25000`); fechas al usuario en `DD/MM/YYYY`
 - Respuestas cortas, español rioplatense
 - Si el mensaje no es sobre reservas, redirige
 
@@ -322,9 +325,9 @@ Tool que el AI Agent llama para consultar disponibilidad de habitaciones. Devuel
 | `checkIn` | string | Fecha de entrada (YYYY-MM-DD) |
 | `checkOut` | string | Fecha de salida (YYYY-MM-DD) |
 
-**Respuesta esperada:** Array de habitaciones con `id`, número, tipo y capacidad.
+**Respuesta esperada:** Array de habitaciones con `id`, número, tipo, capacidad, **`pricePerNight`** (número, puede ser `null` si no hay tarifa) y **`ratePlanName`**.
 
-> El agente **SIEMPRE** debe llamar esto antes de `crear_reserva` para obtener el `roomId`.
+> El agente **SIEMPRE** debe llamar esto antes de `crear_reserva` para obtener el `roomId` y el precio por noche.
 
 ---
 

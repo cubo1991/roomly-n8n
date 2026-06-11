@@ -65,17 +65,45 @@ export async function getAvailableRooms(
 
   const occupiedRoomIds = conflictingReservations.map((r) => r.roomId);
 
-  return prisma.room.findMany({
+  const rooms = await prisma.room.findMany({
     where: {
       hotelId,
       status: { in: ["AVAILABLE"] },
       id: occupiedRoomIds.length > 0 ? { notIn: occupiedRoomIds } : undefined,
     },
     include: {
-      type: { select: { name: true, maxGuests: true, amenities: true } },
+      type: {
+        select: {
+          name: true,
+          maxGuests: true,
+          amenities: true,
+          ratePlans: {
+            select: { pricePerNight: true, name: true },
+            orderBy: { validFrom: "desc" },
+            take: 1,
+          },
+        },
+      },
     },
     orderBy: { number: "asc" },
   });
+
+  // Flatten pricePerNight so the AI agent receives it as a plain number
+  return rooms.map((room) => ({
+    id: room.id,
+    number: room.number,
+    floor: room.floor,
+    status: room.status,
+    type: {
+      name: room.type.name,
+      maxGuests: room.type.maxGuests,
+      amenities: room.type.amenities,
+    },
+    pricePerNight: room.type.ratePlans[0]
+      ? Number(room.type.ratePlans[0].pricePerNight)
+      : null,
+    ratePlanName: room.type.ratePlans[0]?.name ?? null,
+  }));
 }
 
 /**
@@ -93,7 +121,16 @@ export async function getRoomStatusGrid(
   const rooms = await prisma.room.findMany({
     where: { hotelId },
     include: {
-      type: { select: { name: true } },
+      type: {
+        select: {
+          name: true,
+          ratePlans: {
+            select: { pricePerNight: true },
+            orderBy: { validFrom: "desc" },
+            take: 1,
+          },
+        },
+      },
       reservations: {
         where: {
           status: { notIn: ["CANCELLED", "NO_SHOW"] },
@@ -114,6 +151,9 @@ export async function getRoomStatusGrid(
     number: room.number,
     floor: room.floor,
     typeName: room.type.name,
+    pricePerNight: room.type.ratePlans[0]
+      ? Number(room.type.ratePlans[0].pricePerNight)
+      : null,
     status: room.reservations.length > 0 ? "OCCUPIED" : room.status,
     reservation: room.reservations[0] ?? null,
   }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useState, useTransition } from "react";
 import {
   Table,
   TableBody,
@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import EditableGuestCell from "@/components/dashboard/EditableGuestCell";
 import ChatDrawer from "@/components/dashboard/ChatDrawer";
+import { checkoutReservation } from "@/app/dashboard/actions";
 
 type Reservation = {
   id: string;
@@ -31,6 +32,7 @@ type Reservation = {
     email?: string | null;
     dni?: string | null;
   };
+  ratePlan?: { name: string; pricePerNight: number } | null;
 };
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -68,6 +70,26 @@ function nightsBetween(a: Date, b: Date) {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 }
 
+function formatPrice(n: number) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+/** Returns true if a reservation's checkout date has already passed and it's still open */
+function isCheckoutOverdue(r: { checkOut: Date; status: string }): boolean {
+  const now = new Date();
+  const todayUTC = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
+  return (
+    ["CONFIRMED", "CHECKED_IN"].includes(r.status) &&
+    new Date(r.checkOut) < todayUTC
+  );
+}
+
 const COLSPAN = 6;
 
 export default function ReservationTable({
@@ -77,6 +99,16 @@ export default function ReservationTable({
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [chat, setChat] = useState<{ id: string; title: string } | null>(null);
+  const [checkingOutId, setCheckingOutId] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleCheckout(id: string) {
+    setCheckingOutId(id);
+    startTransition(async () => {
+      await checkoutReservation(id);
+      setCheckingOutId(null);
+    });
+  }
 
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -115,6 +147,11 @@ export default function ReservationTable({
               variant: "outline" as const,
             };
             const isOpen = expanded.has(r.id);
+            const overdue = isCheckoutOverdue(r);
+            const nights = nightsBetween(r.checkIn, r.checkOut);
+            const canCheckout = ["CONFIRMED", "CHECKED_IN"].includes(r.status);
+            const isProcessing = checkingOutId === r.id && isPending;
+
             return (
               <Fragment key={r.id}>
                 <TableRow
@@ -146,7 +183,17 @@ export default function ReservationTable({
                   <TableCell>{formatDate(r.checkIn)}</TableCell>
                   <TableCell>{formatDate(r.checkOut)}</TableCell>
                   <TableCell>
-                    <Badge variant={variant}>{label}</Badge>
+                    <div className="flex flex-col gap-1">
+                      <Badge variant={variant}>{label}</Badge>
+                      {overdue && (
+                        <Badge
+                          variant="outline"
+                          className="text-orange-400 border-orange-500 text-[10px] whitespace-nowrap"
+                        >
+                          Checkout vencido
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
 
@@ -158,7 +205,7 @@ export default function ReservationTable({
                       <div className="flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
                         <div>
                           <span className="text-zinc-500">Noches: </span>
-                          {nightsBetween(r.checkIn, r.checkOut)}
+                          {nights}
                         </div>
                         <div>
                           <span className="text-zinc-500">Personas: </span>
@@ -168,22 +215,52 @@ export default function ReservationTable({
                           <span className="text-zinc-500">Canal: </span>
                           <span className="uppercase text-xs">{r.channel}</span>
                         </div>
+                        {r.ratePlan && (
+                          <div>
+                            <span className="text-zinc-500">Tarifa: </span>
+                            {r.ratePlan.name} · {formatPrice(r.ratePlan.pricePerNight)}/noche
+                          </div>
+                        )}
+                        {r.ratePlan && (
+                          <div>
+                            <span className="text-zinc-500">Total estimado: </span>
+                            <span className="text-white font-medium">
+                              {formatPrice(r.ratePlan.pricePerNight * nights)}
+                            </span>
+                          </div>
+                        )}
                         <div>
                           <span className="text-zinc-500">Creada el: </span>
                           {formatDateTime(r.createdAt)}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setChat({
-                              id: r.id,
-                              title: `${r.code} · ${r.guestName ?? r.guest.name}`,
-                            })
-                          }
-                          className="ml-auto text-sm bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1.5 transition-colors"
-                        >
-                          Ver chat
-                        </button>
+                        <div className="ml-auto flex items-center gap-2">
+                          {canCheckout && (
+                            <button
+                              type="button"
+                              disabled={isProcessing}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCheckout(r.id);
+                              }}
+                              className="text-sm bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded px-3 py-1.5 transition-colors"
+                            >
+                              {isProcessing ? "Cerrando..." : "Cerrar reserva"}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setChat({
+                                id: r.id,
+                                title: `${r.code} · ${r.guestName ?? r.guest.name}`,
+                              });
+                            }}
+                            className="text-sm bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1.5 transition-colors"
+                          >
+                            Ver chat
+                          </button>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>

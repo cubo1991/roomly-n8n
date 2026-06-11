@@ -7,17 +7,26 @@ export default async function DashboardPage() {
   // For MVP: use the first hotel found (single-tenant)
   const hotel = await prisma.hotel.findFirst({ orderBy: { createdAt: "asc" } });
 
-  const reservations = hotel
+  const rawReservations = hotel
     ? await prisma.reservation.findMany({
         where: { hotelId: hotel.id },
         include: {
           room: { select: { number: true } },
           guest: { select: { id: true, name: true, phone: true, email: true, dni: true } },
+          ratePlan: { select: { name: true, pricePerNight: true } },
         },
-        orderBy: { checkIn: "asc" },
+        orderBy: { createdAt: "desc" },
         take: 100,
       })
     : [];
+
+  // Serialize Prisma Decimal → plain number so client components can receive it
+  const reservations = rawReservations.map((r) => ({
+    ...r,
+    ratePlan: r.ratePlan
+      ? { name: r.ratePlan.name, pricePerNight: Number(r.ratePlan.pricePerNight) }
+      : null,
+  }));
 
   // Stats
   // Use UTC midnight for comparisons: Prisma @db.Date fields come back as

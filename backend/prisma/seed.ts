@@ -81,14 +81,14 @@ async function main() {
   // Create rate plans
   await prisma.ratePlan.upsert({
     where: { id: "rate-standard-seed" },
-    update: {},
+    update: { pricePerNight: 25000 },
     create: {
       id: "rate-standard-seed",
       hotelId: hotel.id,
       typeId: standardType.id,
       name: "Tarifa base Standard",
-      pricePerNight: 15000,
-      validFrom: new Date("2024-01-01"),
+      pricePerNight: 25000,
+      validFrom: new Date("2025-01-01"),
       validTo: new Date("2030-12-31"),
       minNights: 1,
     },
@@ -96,19 +96,19 @@ async function main() {
 
   await prisma.ratePlan.upsert({
     where: { id: "rate-suite-seed" },
-    update: {},
+    update: { pricePerNight: 45000 },
     create: {
       id: "rate-suite-seed",
       hotelId: hotel.id,
       typeId: suiteType.id,
       name: "Tarifa base Suite",
-      pricePerNight: 28000,
-      validFrom: new Date("2024-01-01"),
+      pricePerNight: 45000,
+      validFrom: new Date("2025-01-01"),
       validTo: new Date("2030-12-31"),
       minNights: 2,
     },
   });
-  console.log("✅ Rate plans created");
+  console.log("✅ Rate plans: Standard $25.000/noche · Suite $45.000/noche");
 
   console.log("\n🎉 Seed complete!");
   console.log(`\nHotel ID (use in API calls): ${hotel.id}`);
