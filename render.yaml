@@ -1,0 +1,131 @@
+# ============================================================
+# Roomly – Infrastructure as Code para Render
+# Documentación: docs/render-deploy.md
+# ============================================================
+
+databases:
+  # PostgreSQL compartido: backend (schema public) + n8n (schema n8n)
+  - name: roomly-postgres
+    databaseName: roomly
+    user: roomly
+    plan: starter   # $7/mes – no hay tier gratuito para PostgreSQL en Render
+
+services:
+
+  # ── Redis (BullMQ jobs) ────────────────────────────────────────────────────
+  - type: redis
+    name: roomly-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+  # ── Backend Next.js (dashboard + API) ─────────────────────────────────────
+  - type: web
+    name: roomly-backend
+    plan: free
+    env: docker
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: roomly-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: roomly-redis
+          type: redis
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      # ── Completar manualmente en el dashboard de Render ──
+      - key: NEXTAUTH_URL
+        sync: false   # https://roomly-backend.onrender.com
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: N8N_WEBHOOK_SECRET
+        sync: false
+      - key: N8N_BASE_URL
+        sync: false   # https://roomly-n8n.onrender.com
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_CALENDAR_ID
+        sync: false
+
+  # ── n8n (bot WhatsApp + automatización) ───────────────────────────────────
+  - type: web
+    name: roomly-n8n
+    plan: free
+    env: docker
+    region: oregon
+    port: 5678
+    image:
+      url: docker.io/n8nio/n8n
+    envVars:
+      - key: N8N_PORT
+        value: "5678"
+      - key: N8N_PROTOCOL
+        value: https
+      - key: NODE_ENV
+        value: production
+      - key: N8N_TRUST_PROXY
+        value: "true"
+      - key: N8N_SECURE_COOKIE
+        value: "false"
+      - key: N8N_BLOCK_ENV_ACCESS_IN_NODE
+        value: "false"
+      - key: EXECUTIONS_TIMEOUT
+        value: "300"
+      - key: EXECUTIONS_TIMEOUT_MAX
+        value: "600"
+      # n8n usa el mismo PostgreSQL que el backend, en un schema separado
+      - key: DB_TYPE
+        value: postgresdb
+      - key: DB_POSTGRESDB_HOST
+        fromDatabase:
+          name: roomly-postgres
+          property: host
+      - key: DB_POSTGRESDB_PORT
+        fromDatabase:
+          name: roomly-postgres
+          property: port
+      - key: DB_POSTGRESDB_DATABASE
+        fromDatabase:
+          name: roomly-postgres
+          property: database
+      - key: DB_POSTGRESDB_SCHEMA
+        value: n8n
+      - key: DB_POSTGRESDB_USER
+        fromDatabase:
+          name: roomly-postgres
+          property: user
+      - key: DB_POSTGRESDB_PASSWORD
+        fromDatabase:
+          name: roomly-postgres
+          property: password
+      # ── Completar manualmente en el dashboard de Render ──
+      - key: N8N_HOST
+        sync: false   # roomly-n8n.onrender.com (sin https://)
+      - key: WEBHOOK_URL
+        sync: false   # https://roomly-n8n.onrender.com/
+      - key: N8N_EDITOR_BASE_URL
+        sync: false   # https://roomly-n8n.onrender.com/
+      - key: BACKEND_URL
+        sync: false   # https://roomly-backend.onrender.com
+      - key: HOTEL_ID
+        sync: false   # completar después del primer deploy (ver guía)
+      - key: N8N_WEBHOOK_SECRET
+        sync: false   # mismo valor que en el backend
